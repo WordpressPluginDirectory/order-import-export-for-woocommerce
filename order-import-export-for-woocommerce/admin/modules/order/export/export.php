@@ -11,6 +11,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
     public $parent_module = null;
     public $table_name;
     public static $is_hpos_enabled;
+    public $hpos_sync ;
     private $line_items_max_count = 0;
     private $export_to_separate_columns = false;
     private $export_to_separate_rows = false;     
@@ -22,12 +23,15 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
     public $is_eh_stripe_active = false; 
     public $is_wc_stripe_active = false; 
 	private $wpo_wcpdf = false;
+    private $exclude_line_items = false;
+
 
     public function __construct($parent_object) {
 
         $this->parent_module = $parent_object;     
         $hpos_data = Wt_Import_Export_For_Woo_Basic_Common_Helper::is_hpos_enabled();
         $this->table_name = $hpos_data['table_name'];
+        $this->hpos_sync = $hpos_data['sync'];
         if( strpos($hpos_data['table_name'],'wc_orders') !== false ){
             self::$is_hpos_enabled = true;
         }           
@@ -60,6 +64,9 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
             $this->is_wc_stripe_active = true;
         endif;
 		
+        if ($this->exclude_line_items) {
+			return apply_filters('hf_alter_csv_header', $export_columns);
+		}
         $max_line_items = $this->line_items_max_count;
 
         for ($i = 1; $i <= $max_line_items; $i++) {
@@ -167,7 +174,8 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
      */
     public function prepare_data_to_export($form_data, $batch_offset) {
 
-        
+        global $wpdb;
+
         $export_order_statuses = !empty($form_data['filter_form_data']['wt_iew_order_status']) ? $form_data['filter_form_data']['wt_iew_order_status'] : 'any';
         $products = !empty($form_data['filter_form_data']['wt_iew_products']) ? $form_data['filter_form_data']['wt_iew_products'] : '';
         $email = !empty($form_data['filter_form_data']['wt_iew_email']) ? $form_data['filter_form_data']['wt_iew_email'] : array(); // user email fields return user ids
@@ -185,6 +193,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
 
         $this->export_to_separate_columns = (!empty($form_data['advanced_form_data']['wt_iew_export_to_separate']) && $form_data['advanced_form_data']['wt_iew_export_to_separate'] === 'column') ? true : false;                       
         $this->export_to_separate_rows = (!empty($form_data['advanced_form_data']['wt_iew_export_to_separate']) && $form_data['advanced_form_data']['wt_iew_export_to_separate'] === 'row') ? true : false;               
+		$this->exclude_line_items = (!empty($form_data['advanced_form_data']['wt_iew_exclude_line_items']) && $form_data['advanced_form_data']['wt_iew_exclude_line_items'] == 'Yes') ? true : false;
 
         
         $real_offset = ($current_offset + $batch_offset);
@@ -227,7 +236,6 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
                 $total_records=0;
                 
                 if ($exclude_already_exported) {
-                    global $wpdb;
                     if(strpos($this->table_name, 'wc_order') !== false ){
                         $exclude_query = "SELECT ot.id FROM {$wpdb->prefix}wc_orders as ot LEFT JOIN {$wpdb->prefix}wc_orders_meta as omt ON ot.id = omt.order_id AND omt.meta_key = 'wf_order_exported_status' WHERE omt.order_id IS NULL";
                     }else{
@@ -318,12 +326,19 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
             $total_records = count($order_ids);
             $order_ids = array_slice($order_ids, $batch_offset, $limit);
             foreach ($order_ids as $order_id) {
-                $data_array[] = $this->generate_row_data($order_id);
-                // updating records with expoted status 
-                $order = wc_get_order($order_id);
-                $order->update_meta_data('wf_order_exported_status', TRUE);
-                update_post_meta($order_id,'wf_order_exported_status',TRUE);
-                $order->save();  
+                if(wc_get_order($order_id)){
+                    $data_array[] = $this->generate_row_data($order_id);
+                    // updating records with expoted status 
+                    if(self::$is_hpos_enabled){
+						if($this->hpos_sync){
+							update_post_meta($order_id, 'wf_order_exported_status', TRUE);
+						}
+						$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}wc_orders_meta WHERE meta_key = 'wf_order_exported_status' AND order_id = %d;", $order_id ) );
+						$wpdb->query( $wpdb->prepare( "INSERT INTO {$wpdb->prefix}wc_orders_meta (order_id, meta_key, meta_value) VALUES (%d, %s, %s)", $order_id, 'wf_order_exported_status', TRUE ) ) ;
+					}else{
+						update_post_meta($order_id, 'wf_order_exported_status', TRUE);
+					} 
+                }
             }
             if($this->export_to_separate_rows){
                 $data_array = $this->wt_ier_alter_order_data_before_export_for_separate_row($data_array);
@@ -372,7 +387,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
             $tax_detail = isset($tax_data['total']) ? wc_format_decimal(wc_round_tax_total(array_sum((array) $tax_data['total'])), 2) : '';
             if ($tax_detail != '0.00' && !empty($tax_detail)) {
                 $line_item['tax'] = $tax_detail;
-                $line_tax_ser = maybe_serialize($line_tax_data);
+                $line_tax_ser = json_encode($line_tax_data);
                 $line_item['tax_data'] = $line_tax_ser;
             }
 
@@ -394,7 +409,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
                             $value = $value->meta_value;
                         if (is_array($value))
                             $value = implode(',', $value);
-                        $line_item[$key] = $value;
+						$line_item['meta:' . $key] = $value;
                         break;
                 }
             }
@@ -418,13 +433,19 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
             $item_meta = self::get_order_line_item_meta($item_id);
             foreach ($item_meta as $key => $value) {
                 switch ($key) {
-                    case 'Items':	
+                    case 'Items':
+           
                     case 'method_id':
+                       
                     case 'taxes':
-                        if (is_object($value))
+    
+                        if (is_object($value)){
                             $value = $value->meta_value;
+                            $value = json_encode(maybe_unserialize($value));
+                        }
+
                         if (is_array($value))
-                            $value = implode(',', $value);
+                            $value = json_encode($value);
                         $meta[$key] = $value;
                         break;
                 }
@@ -446,7 +467,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
                 'name:' . html_entity_decode($fee['name'], ENT_NOQUOTES, 'UTF-8'),
                 'total:' . wc_format_decimal($fee['line_total'], 2),
                 'tax:' . wc_format_decimal($fee['line_tax'], 2),
-                'tax_data:' . maybe_serialize($fee['line_tax_data'])
+                'tax_data:' . json_encode($fee['line_tax_data'])
             ));
             $fee_total += (float) $fee['line_total'];
             $fee_tax_total += (float) $fee['line_tax'];
@@ -556,10 +577,15 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
             );
         } else {
             $paid_date = $order->get_date_paid();
+            if(self::$is_hpos_enabled){
+                $order_date = date('Y-m-d H:i:s', strtotime( $order->get_date_created()));
+            }else{
+                $order_date = date('Y-m-d H:i:s', strtotime(get_post($order->get_id())->post_date));
+            }
             $order_data = array(
                 'order_id' => $order->get_id(),
                 'order_number' => $order->get_order_number(),
-                'order_date' => date('Y-m-d H:i:s', strtotime(get_post($order->get_id())->post_date)),
+                'order_date' => $order_date,
                 'paid_date' => $paid_date, //isset($paid_date) ? date('Y-m-d H:i:s', strtotime($paid_date)) : '',
                 'status' => $order->get_status(),
                 'shipping_total' => $order->get_total_shipping(),
@@ -614,8 +640,29 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
                 'order_notes' => implode('||', (defined('WC_VERSION') && (WC_VERSION >= 3.2)) ? self::get_order_notes_new($order) : self::get_order_notes($order)),
                 'download_permissions' => $order->is_download_permitted() ? $order->is_download_permitted() : 0,                
             );
+            
+
         }
-        
+        if( defined( 'WC_VERSION' ) && version_compare( WC_VERSION, '8.5', '>=' ) ){
+            $wc_order_attribution_device_type = $order->get_meta('_wc_order_attribution_device_type');
+            $wc_order_attribution_referrer = $order->get_meta('_wc_order_attribution_referrer');
+            $wc_order_attribution_session_count = $order->get_meta('_wc_order_attribution_session_count');
+            $wc_order_attribution_session_entry = $order->get_meta('_wc_order_attribution_session_entry');
+            $wc_order_attribution_session_pages = $order->get_meta('_wc_order_attribution_session_pages');
+            $wc_order_attribution_session_start_time = $order->get_meta('_wc_order_attribution_session_start_time');
+            $wc_order_attribution_source_type = $order->get_meta('_wc_order_attribution_source_type');
+            $wc_order_attribution_user_agent = $order->get_meta('_wc_order_attribution_user_agent');
+            $wc_order_attribution_utm_source = $order->get_meta('_wc_order_attribution_utm_source');
+            $order_data['meta:_wc_order_attribution_device_type'] = isset($wc_order_attribution_device_type) ? $wc_order_attribution_device_type : '';
+            $order_data['meta:_wc_order_attribution_referrer'] = isset($wc_order_attribution_referrer) ? $wc_order_attribution_referrer : '';
+            $order_data['meta:_wc_order_attribution_session_count'] = isset($wc_order_attribution_session_count) ? $wc_order_attribution_session_count : '';
+            $order_data['meta:_wc_order_attribution_session_entry'] = isset($wc_order_attribution_session_entry) ? $wc_order_attribution_session_entry : '';
+            $order_data['meta:_wc_order_attribution_session_pages'] = isset($wc_order_attribution_session_pages) ? $wc_order_attribution_session_pages : '';
+            $order_data['meta:_wc_order_attribution_session_start_time'] = isset($wc_order_attribution_session_start_time) ? $wc_order_attribution_session_start_time : '';
+            $order_data['meta:_wc_order_attribution_source_type'] = isset($wc_order_attribution_source_type) ? $wc_order_attribution_source_type : '';
+            $order_data['meta:_wc_order_attribution_user_agent'] = isset($wc_order_attribution_user_agent) ? $wc_order_attribution_user_agent : '';
+            $order_data['meta:_wc_order_attribution_utm_source'] = isset($wc_order_attribution_utm_source) ? $wc_order_attribution_utm_source : '';
+        }
         if ($this->is_wt_invoice_active):
             $invoice_date = $order->get_meta('_wf_invoice_date');
             $invoice_number = $order->get_meta('wf_invoice_number');
@@ -667,7 +714,11 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
          if ($this->is_wc_stripe_active):
 
             $stripe_fee =  $order->get_meta('_stripe_fee');
-            $order_data['meta:_stripe_fees'] = empty($stripe_fee) ? '' : json_encode($stripe_fee);
+            $stripe_currency =  $order->get_meta('_stripe_currency');
+            $stripe_net =  $order->get_meta('_stripe_net');
+            $order_data['meta:_stripe_fee'] = empty($stripe_fee) ? '' : json_encode($stripe_fee);
+            $order_data['meta:_stripe_currency'] = empty($stripe_currency) ? '' : json_encode($stripe_currency);
+            $order_data['meta:_stripe_net'] = empty($stripe_net) ? '' : json_encode($stripe_net);
          endif; 
          
         $order_export_data = array();
@@ -678,6 +729,9 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
             } 
         }
 
+        if ($this->exclude_line_items) {
+			return apply_filters('hf_alter_csv_order_data', $order_export_data, array('max_line_items' => 0));
+		}
         $li = 1;
         foreach ($line_items as $line_item) {
             foreach ($line_item as $name => $value) {
@@ -705,7 +759,6 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
                     $order_export_data["line_item_{$i}_subtotal"] = !empty($line_items[$i-1]['sub_total']) ? $line_items[$i-1]['sub_total'] : '';
             }
         }
-		
         $order_data_filter_args = array('max_line_items' => $max_line_items);
         
         if ($this->export_to_separate_rows) {
@@ -970,19 +1023,30 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
     }
 
     public static function format_data($data) {
-        if (!is_array($data))
-            ;
-        $data = (string) urldecode($data);
-//        $enc = mb_detect_encoding($data, 'UTF-8, ISO-8859-1', true);        
-        $use_mb = function_exists('mb_detect_encoding');
-        $enc = '';
-        if ($use_mb) {
-            $enc = mb_detect_encoding($data, 'UTF-8, ISO-8859-1', true);
-        }
-        $data = ( $enc == 'UTF-8' ) ? $data : utf8_encode($data);
+		if (!is_array($data))
+			;
+		$data = (string) urldecode($data);
 
-        return $data;
-    }
+		if (function_exists('mb_convert_encoding') &&  function_exists('mb_convert_encoding')) {
+			$encoding = mb_detect_encoding( $data, mb_detect_order(), true );
+			if ( $encoding ) {
+				return mb_convert_encoding( $data, 'UTF-8', $encoding );
+			} else {
+				return mb_convert_encoding( $data, 'UTF-8', 'UTF-8' );
+			}
+		}else{
+			$newcharstring = '';
+			$bom = apply_filters('wt_import_csv_parser_keep_bom', true);
+			if ($bom) {
+				$newcharstring .= "\xEF\xBB\xBF";
+			}
+			for ($i = 0; $i < strlen($data); $i++) {
+				$charval = ord($data[$i]);
+				$newcharstring .= Wt_Import_Export_For_Woo_Basic_Common_Helper::wt_iconv_fallback_int_utf8($charval);
+			}
+			return $newcharstring;
+		} 
+	}
 
     public static function highest_line_item_count($line_item_keys) {
    

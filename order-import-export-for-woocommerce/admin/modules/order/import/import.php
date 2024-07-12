@@ -473,14 +473,35 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                     $this->item_data['meta_data'][] = array('key'=>'_ppcp_paypal_fees',  'value'=> json_decode($value, true));
                     continue;
                 }
+                
+                // WC Stripe currency
+                if ('meta:_stripe_currency' == $column ) {
 
-
+                    $this->item_data['meta_data'][] = array('key'=>'_stripe_currency',  'value'=>  json_decode($value, true));
+                    continue;
+                }
 
                 // WC Stripe fee
-                if ('meta:_stripe_fees' == $column ) {
+                if ('meta:_stripe_fee' == $column ) {
+
                     $this->item_data['meta_data'][] = array('key'=>'_stripe_fee',  'value'=> json_decode($value, true));
                     continue;
                 }
+
+                // WC Stripe net fee
+                if ('meta:_stripe_net' == $column ) {
+
+                    $this->item_data['meta_data'][] = array('key'=>'_stripe_net',  'value'=> json_decode($value, true));
+                    continue;
+                }
+
+                // WebToffee Stripe fee
+                if ('meta:eh_stripe_fees' == $column ) {
+
+                    $this->item_data['meta_data'][] = array('key'=>'eh_stripe_fee',  'value'=> json_decode($value, true));
+                    continue;
+                }
+                
                 // WebToffee Stripe fee
                 if ('meta:eh_stripe_fees' == $column ) {
 
@@ -509,10 +530,64 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                 } 
                 if ('meta:_wcpdf_invoice_settings' == $column ) {
                     if(!empty($value)){
-                            $this->item_data['meta_data'][] = array('key'=>'_wcpdf_invoice_settings', 'value'=> json_decode($value, true) );
+                            $this->item_data['meta_data'][] = array('key'=>'_wcpdf_invoice_settings', 'value'=> ($value));
                     }
                     continue;
-                } 								
+                } 	
+                if ('meta:_wc_order_attribution_device_type' == $column ) {
+                    if(!empty($value)){
+                            $this->item_data['meta_data'][] = array('key'=>'_wc_order_attribution_device_type', 'value'=> $value);
+                    }
+                    continue;
+                } 
+                if ('meta:_wc_order_attribution_referrer' == $column ) {
+                    if(!empty($value)){
+                            $this->item_data['meta_data'][] = array('key'=>'_wc_order_attribution_referrer', 'value'=> $value);
+                    }
+                    continue;
+                } 
+                if ('meta:_wc_order_attribution_session_count' == $column ) {
+                    if(!empty($value)){
+                            $this->item_data['meta_data'][] = array('key'=>'_wc_order_attribution_session_count', 'value'=> $value);
+                    }
+                    continue;
+                } 
+                if ('meta:_wc_order_attribution_session_entry' == $column ) {
+                    if(!empty($value)){
+                            $this->item_data['meta_data'][] = array('key'=>'_wc_order_attribution_session_entry', 'value'=> $value);
+                    }
+                    continue;
+                } 
+                if ('meta:_wc_order_attribution_session_pages' == $column ) {
+                    if(!empty($value)){
+                            $this->item_data['meta_data'][] = array('key'=>'_wc_order_attribution_session_pages', 'value'=> $value);
+                    }
+                    continue;
+                } 
+                if ('meta:_wc_order_attribution_session_start_time' == $column ) {
+                    if(!empty($value)){
+                            $this->item_data['meta_data'][] = array('key'=>'_wc_order_attribution_session_start_time', 'value'=> $value);
+                    }
+                    continue;
+                } 
+                if ('meta:_wc_order_attribution_source_type' == $column ) {
+                    if(!empty($value)){
+                            $this->item_data['meta_data'][] = array('key'=>'_wc_order_attribution_source_type', 'value'=> $value);
+                    }
+                    continue;
+                } 
+                if ('meta:_wc_order_attribution_user_agent' == $column ) {
+                    if(!empty($value)){
+                            $this->item_data['meta_data'][] = array('key'=>'_wc_order_attribution_user_agent', 'value'=> $value);
+                    }
+                    continue;
+                } 
+                if ('meta:_wc_order_attribution_utm_source' == $column ) {
+                    if(!empty($value)){
+                            $this->item_data['meta_data'][] = array('key'=>'_wc_order_attribution_utm_source', 'value'=> $value);
+                    }
+                    continue;
+                } 
                 if(strstr($column, 'line_item_')){
                     $this->item_data['order_items'][] = $this->wt_parse_line_item_field($value,$column);
                     continue;                
@@ -530,7 +605,6 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                         $this->item_data['status'] = preg_replace('/^wc-/', '', $ord->get_status());
                     }
             }
-
             return $this->item_data;
         } catch (Exception $e) {
             return new WP_Error('woocommerce_product_importer_error', $e->getMessage(), array('status' => $e->getCode()));
@@ -553,9 +627,18 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
             $data_from_post_table = $wpdb->get_row($wpdb->prepare("SELECT ID,post_status,post_type,post_date_gmt,post_parent,post_excerpt FROM {$wpdb->posts} WHERE ID = %d;", $id));
             if(isset( $data_from_order_table) && $data_from_order_table){
                 $order_table_id = $data_from_order_table->id;
-                $order_table_status = $data_from_order_table->status;
+                $order_table_status = 'wc-' . preg_replace('/^wc-/', '', $data_from_order_table->status);
                 $order_table_type = $data_from_order_table->type;
                 $order_table_date_created_gmt = $data_from_order_table->date_created_gmt;
+                if ( wp_timezone() ) {
+                    $gmt_timezone =new DateTimeZone('GMT'); 
+                    $gmt_time = new DateTime($order_table_date_created_gmt, $gmt_timezone);
+                    $local_timezone = wp_timezone(); 
+                    $gmt_time->setTimezone($local_timezone);
+                    $order_table_date_created_local = $gmt_time->format('Y-m-d H:i:s');
+                } else {
+                    $order_table_date_created_local =  $order_table_date_created_gmt ;
+                }
                 $order_table_parent_order_id  = $data_from_order_table->parent_order_id;
                 $order_table_customer_note = $data_from_order_table->customer_note;
             }
@@ -605,7 +688,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                 }else if(isset( $data_from_order_table) && $data_from_order_table && $order_table_type == $this->post_type && in_array( $order_table_status, $statuses) && !$data_from_post_table){
                     $postdata = array( // if not specifiying id (id is empty) or if not found by given id  
                         'import_id'     => $order_table_id,
-                        'post_date'     => $order_table_date_created_gmt,
+                        'post_date'     => $order_table_date_created_local,
                         'post_date_gmt' => $order_table_date_created_gmt,
                         'post_type'     => $this->post_type,
                         'post_status'   => $order_table_status,
@@ -639,9 +722,6 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                     }
     
                 }else if($this->table_name == $wpdb->prefix . 'wc_orders'){
-
-                   
-
                     if($data_from_post_table && isset( $data_from_order_table) && $data_from_order_table){
                         if($this->post_type == $order_table_type){
                             if(in_array( $order_table_status, $statuses)){
@@ -669,7 +749,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                             $order_key = 'wc_' . apply_filters( 'woocommerce_generate_order_key', 'order_' . wp_generate_password( 13, false ) );
                             $postdata = array( // if not specifiying id (id is empty) or if not found by given id  
                                 'import_id'     => $order_table_id,
-                                'post_date'     => $order_table_date_created_gmt,
+                                'post_date'     => $order_table_date_created_local,
                                 'post_date_gmt' => $order_table_date_created_gmt,
                                 'post_type'     => 'shop_order_placehold',
                                 'post_status'   => 'draft',
@@ -688,8 +768,8 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                             }
                         }
                       
-                    }else if($data_from_post_table && isset( $data_from_order_table) && !$data_from_order_table){
-                        if('shope_order_placehold' == $post_table_type){
+                    }else if($data_from_post_table && isset( $data_from_order_table) && !$data_from_order_table || $data_from_post_table && !isset( $data_from_order_table) ){
+                        if('shop_order_placehold' !== $post_table_type && $post_table_type !== $this->post_type){
                             $conflict_with_existing_post = true;
                         }else{
                             $order_data =array(
@@ -1059,7 +1139,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                     break;  // go with the first one we find
                 }
             }
-            $shipping_method_obj = isset($available_methods[$shipping_method]) ? $available_methods[$shipping_method] : $shipping_method;
+            $shipping_method_obj = (isset($shipping_method) && isset($available_methods[$shipping_method])) ? $available_methods[$shipping_method] : (isset($shipping_method) ? $shipping_method: '');
         }
         return $shipping_method_obj;
     }
@@ -1088,15 +1168,15 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
         if('' !== $value){
             $shipping_line_items = explode('|', $value);
             $items = array_shift($shipping_line_items);
-            $items = substr($items, strpos($items, ":") + 1);
+            $items = json_decode(substr($items, strpos($items, ":") + 1));
             $method_id = array_shift($shipping_line_items);
-            $method_id = substr($method_id, strpos($method_id, ":") + 1);
+            $method_id = json_decode(substr($method_id, strpos($method_id, ":") + 1));
             $taxes = array_shift($shipping_line_items);
-            $taxes = substr($taxes, strpos($taxes, ":") + 1);
-            $tax_data = maybe_unserialize($taxes);
+            $tax_data = json_decode(substr($taxes, strpos($taxes, ":") + 1));
+             
             $new_tax_data = array();
-            if(isset($tax_data['total'])){
-                foreach($tax_data['total'] as $t_key => $t_value){
+            if(isset($tax_data->total)){
+                foreach($tax_data->total as $t_key => $t_value){
                     if(isset($this->item_data['tax_items'][$t_key])){
                         $new_tax_data ['total'][$this->item_data['tax_items'][$t_key]['rate_id']] = $t_value ;
                     }else{
@@ -1110,7 +1190,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
             $shipping_items = array(
                 'Items' => $items,
                 'method_id' => $method_id,
-                'taxes' => maybe_unserialize($new_tax_data)
+                'taxes' => $new_tax_data
             );
         }
         
@@ -1132,10 +1212,10 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                 $tax = substr($tax, strpos($tax, ":") + 1);
                 $tax_data = array_shift($fee_item_meta);
                 $tax_data = substr($tax_data, strpos($tax_data, ":") + 1);
-                $tax_data = maybe_unserialize($tax_data);
+                $tax_data = json_decode($tax_data);
                 $new_tax_data = array();
-                if(isset($tax_data['total'])){
-                    foreach($tax_data['total'] as $t_key => $t_value){
+                if(isset($tax_data->total)){
+                    foreach($tax_data->total as $t_key => $t_value){
                         if(isset($this->item_data['tax_items'][$t_key])){
                             $new_tax_data ['total'][$this->item_data['tax_items'][$t_key]['rate_id']] = $t_value ;
                         }else{
@@ -1323,6 +1403,10 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                         $tax_data = $value;
                         break;
                     default :
+                        $pair = str_replace('meta:', '', $pair);
+                        $split = strpos($pair, ':');
+                        $name = substr($pair, 0, $split);
+                        $value = substr($pair, $split + 1);
                         $item_meta[$name] = $value;
                 }
 
@@ -1375,22 +1459,27 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                 'product_name'  => !empty($unknown_product_name) ? $unknown_product_name : ''
             );
             if(!empty($tax_data)){
-                $tax_data = maybe_unserialize($tax_data);
+                $tax_data = json_decode($tax_data);
                 $new_tax_data = array();
-                foreach($tax_data['total'] as $t_key => $t_value){
-                    if(isset($this->item_data['tax_items'][$t_key])){
-                        $new_tax_data ['total'][$this->item_data['tax_items'][$t_key]['rate_id']] = $t_value ;
-                    }else{
-                        $new_tax_data ['total'][$t_key] = $t_value;
+                if(isset($tax_data->total)){
+                    foreach($tax_data->total as $t_key => $t_value){
+                        if(isset($this->item_data['tax_items'][$t_key])){
+                            $new_tax_data ['total'][$this->item_data['tax_items'][$t_key]['rate_id']] = $t_value ;
+                        }else{
+                            $new_tax_data ['total'][$t_key] = $t_value;
+                        }
                     }
                 }
-                foreach($tax_data['subtotal'] as $st_key => $st_value){
-                    if(isset($this->item_data['tax_items'][$st_key])){
-                        $new_tax_data ['subtotal'][$this->item_data['tax_items'][$st_key]['rate_id'] ] = $st_value ;
-                    }else{
-                        $new_tax_data ['subtotal'][$st_key] = $st_value;
+                if(isset($tax_data->subtotal)){
+                    foreach($tax_data->subtotal as $st_key => $st_value){
+                        if(isset($this->item_data['tax_items'][$st_key])){
+                            $new_tax_data ['subtotal'][$this->item_data['tax_items'][$st_key]['rate_id'] ] = $st_value ;
+                        }else{
+                            $new_tax_data ['subtotal'][$st_key] = $st_value;
+                        }
                     }
                 }
+                
                 $order_items['tax_data'] = serialize($new_tax_data);
             }
                 
@@ -1485,7 +1574,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
      * @return int
      */
     public function wt_parse_id_field($data, $parsed_data) {
-         
+        global $wpdb;
 		if(!isset($data['order_id'])){
 			return 0;
 		}
@@ -1500,13 +1589,21 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
             remove_all_actions('save_post');
         }
         $order_key = 'wc_' . apply_filters( 'woocommerce_generate_order_key', 'order_' . wp_generate_password( 13, false ) );
-    
-        global $wpdb;
+
+        $date = !empty($parsed_data['date_created']) ? $parsed_data['date_created'] : date('Y-m-d H:i:s', time());
+        if ( wp_timezone() ) {
+            $local_timezone = wp_timezone(); 
+            $local_time = new DateTime($parsed_data['date_created'], $local_timezone);
+            $gmt_timezone = new DateTimeZone('GMT');
+            $local_time->setTimezone($gmt_timezone);
+            $gmt_date = $local_time->format('Y-m-d H:i:s');
+        } else {
+            $gmt_date =  $date ;
+        }
         if($this->is_sync == 1)   {
-            $date = !empty($parsed_data['date_created']) ? $parsed_data['date_created'] : date('Y-m-d H:i:s', time());
             $postdata = array( // if not specifiying id (id is empty) or if not found by given id  
                 'post_date'     => $date,
-                'post_date_gmt' => $date,
+                'post_date_gmt' => $gmt_date,
                 'post_type'     => $this->post_type,
                 'post_status'   => 'importing',
                 'ping_status'   => 'closed',
@@ -1523,7 +1620,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
             if($post_id){
                 $order_data =array(
                     'id'               => $post_id,
-                    'date_created_gmt' => $date,
+                    'date_created_gmt' => $gmt_date,
                     'type'             => $this->post_type,
                     'status'           => 'importing',
                     'parent_order_id'  => !empty($parsed_data['parent_id']) ? $parsed_data['parent_id'] : 0,
@@ -1537,10 +1634,9 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                
         }else{
             if($this->table_name == $wpdb->prefix . 'posts'){
-                $date = !empty($parsed_data['date_created']) ? $parsed_data['date_created'] : date('Y-m-d H:i:s', time());
                 $postdata = array( // if not specifiying id (id is empty) or if not found by given id  
                     'post_date'     => $date,
-                    'post_date_gmt' => $date,
+                    'post_date_gmt' => $gmt_date,
                     'post_type'     => $this->post_type,
                     'post_status'   => 'importing',
                     'ping_status'   => 'closed',
@@ -1558,7 +1654,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                 $date = !empty($parsed_data['date_created']) ? $parsed_data['date_created'] : date('Y-m-d H:i:s', time());
                 $postdata = array( // if not specifiying id (id is empty) or if not found by given id  
                     'post_date'     => $date,
-                    'post_date_gmt' => $date,
+                    'post_date_gmt' => $gmt_date,
                     'post_type'     => 'shop_order_placehold',
                     'post_status'   => 'draft',
                     'ping_status'   => 'closed',
@@ -1572,7 +1668,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                 if($post_id){
                     $order_data =array(
                         'id'               => $post_id,
-                        'date_created_gmt' => $date,
+                        'date_created_gmt' => $gmt_date,
                         'type'             => $this->post_type,
                         'status'           => 'importing',
                         'parent_order_id'  => !empty($parsed_data['parent_id']) ? $parsed_data['parent_id'] : 0,
@@ -1592,10 +1688,10 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
             return $post_id;
         }else{
             if(isset($insert_order) && !$insert_order){
-                throw new Exception ('Errror in creating entry in custom order table');
+                throw new Exception ('Error in creating entry in custom order table');
             }else{
                 if($post_id === 0){
-                    throw new Exception ('Errror in creating entry in post table');
+                    throw new Exception ('Error in creating entry in post table');
                 }else{
                     throw new Exception($post_id->get_error_message());
                 }
@@ -1830,14 +1926,14 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
             }
 			
             $order->set_prices_include_tax( 'yes' === get_option( 'woocommerce_prices_include_tax' ) );
-            $order_key = apply_filters( 'woocommerce_generate_order_key', uniqid( 'wc_order_' ) );
             if( !empty(  $data['order_key']) ){
 		        $order_key = apply_filters( 'woocommerce_generate_order_key', $data['order_key'] );
+            }else{
+                $order_key = apply_filters( 'woocommerce_generate_order_key', uniqid( 'wc_order_' ) );
             }
 
-            $order->set_order_key( $order_key );
             if ($this->is_hpos_enabled) {
-                $order->set_order_key('_order_key', $order_key);                
+                $order->set_order_key( $order_key );
             } else {
                 update_post_meta( $order->get_id(), '_order_key', $order_key );
             }
@@ -1915,7 +2011,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
 							if( '_reduced_stock' === $meta_key && $this->update_stock_details ){
 								continue;
 							}
-                            wc_add_order_item_meta($order_item_id, $meta_key, maybe_unserialize($meta_value));
+                            wc_add_order_item_meta($order_item_id, $meta_key, $meta_value);
                         }
                     }
                 } 
@@ -1942,7 +2038,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
 
             if (!empty($data['shipping_items'])) {
                 foreach ($data['shipping_items'] as $key => $value) {
-                    if ($shipping_order_item_id) {
+                    if (isset($shipping_order_item_id) && $shipping_order_item_id) {
                         wc_add_order_item_meta($shipping_order_item_id, $key, $value);
                     } else {
                         $shipping_order_item_id = wc_add_order_item($order_id, $shipping_order_item);
@@ -2362,31 +2458,17 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
             foreach ($data['meta_data'] as $meta) {                                                
                 if (( 'Download Permissions Granted' == $meta['key'] || '_download_permissions_granted' == $meta['key'] ) && $meta['value']) {
                     $add_download_permissions = true;
-                }
-                
-                if ('wf_invoice_number' ==  $meta['key']) {
-                    update_post_meta($order_id, 'wf_invoice_number',$meta['value']);
-                    continue;
-                }
-                if ('_wf_invoice_date' == $meta['key'] ) {
-                    update_post_meta($order_id, '_wf_invoice_date',$meta['value']);
-                    continue;
-                }     
-                
+                }   
                 if('_wt_import_key' == $meta['key']){
                     $object->update_meta_data('_wt_import_key', apply_filters('wt_importing_order_reference_key', $meta['value'], $data)); // for future reference, this holds the order number which in the csv.
                     continue;
                 }
-                
-                if ( is_serialized( $meta['value'] ) ) { // Don't attempt to unserialize data that wasn't serialized going in.
-                    $meta['value'] = maybe_unserialize(maybe_unserialize($meta['value']));
-                }
-                
                 $object->update_meta_data($meta['key'], $meta['value']);
             }
-
+            
             // Grant downloadalbe product permissions
             if ($add_download_permissions) {
+                $object->save();
                 $force = apply_filters('wt_force_update_downloadalbe_product_permissions', true);
                 wc_downloadable_product_permissions($order_id, $force);
 

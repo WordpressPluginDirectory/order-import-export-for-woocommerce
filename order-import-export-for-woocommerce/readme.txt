@@ -1,11 +1,10 @@
 === Order Export & Order Import for WooCommerce ===
 Contributors: webtoffee
-Donate link: https://www.webtoffee.com/plugins/
-Tags: order export, woocommerce, order, export, csv, order import, woocommerce export orders,  woocommerce  import orders, import, coupon export, coupon import, importer
+Tags: woocommerce export orders,  woocommerce import orders, advanced order export, coupon import export, woocommerce order import export
 Requires at least: 3.0
-Tested up to: 6.4.2
+Tested up to: 6.5.5
 Requires PHP: 5.6
-Stable tag: 2.4.5
+Stable tag: 2.5.5
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -29,9 +28,9 @@ The following are functionalities offered by the basic version of the order impo
  &#128312; Bulk update WooCommerce orders and coupons.
  &#128312; Compatible with YITH WooCommerce Order Tracking plugin.
  &#128312; Supports various export filters (order status, product, coupon, customer, date range) for order export to CSV.
- &#128312; Tested OK with WooCommerce 8.4
- &#128312; Tested OK with WordPress 6.4.2
- &#128312; Tested OK with PHP 8.2.0
+ &#128312; Tested OK with WooCommerce 9.0.2
+ &#128312; Tested OK with WordPress 6.5.5
+ &#128312; Tested OK with PHP 8.3
 
 Additional features of the order import and order export plugin that will help you in the CSV export and import process:
 
@@ -115,7 +114,7 @@ Highlights: Simply Export Orders, Customer Order CSV Export, Export Orders to Ex
 &#128312; <a rel="nofollow" href="https://wordpress.org/plugins/users-customers-import-export-for-wp-woocommerce/">Import Export WordPress Users</a>: Import and export the users in your WordPress store using a CSV file with the help of this plugin.
 &#128312; <a rel="nofollow" href="https://wordpress.org/plugins/wp-migration-duplicator/">WordPress Backup & Migration</a>: Quickly migrate and backup entire WordPress site or selected files from one location to another. Backup to FTP, Google Drive, Amazon S3, or local storage and easily restore them back.
 &#128312; <a href="https://wordpress.org/plugins/webtoffee-product-feed/">WebToffee WooCommerce Product Feed & Sync Manager</a>: Generate WooCommerce product feed for Google, Facebook and Instagram Shops and sync WooCommerce products with Facebook catalog.
-
+&#128312; <a href="https://wordpress.org/plugins/wt-gift-cards-woocommerce/">WebToffee Gift Cards for WooCommerce</a>: Create and sell gift card in your WooCommerce store. Allow your customers to buy, redeem, and share gift card.
 
 = About WebToffee.com =
 
@@ -208,6 +207,40 @@ Yes.
 
 == Changelog ==
 
+= 2.5.5 2024-07-11 =
+* [Compatibility] - Tested OK with WooCommerce 9.0.2
+* [Compatibility] - Tested OK with WordPress 6.5.5
+= 2.5.4 2024-06-18 =
+* [Fix] - Issue with exporting while HPOS is enabled.
+= 2.5.3 2024-06-12 =
+* [Fix] -  Improvement in Encoding Characters.
+* [Compatibility] - Tested OK with WooCommerce 8.9.4
+* [Compatibility] - Tested OK with WordPress 6.5.4
+= 2.5.2 2024-05-08 =
+* [Compatibility] - Tested OK with WooCommerce 8.8.3
+* [Compatibility] - Tested OK with WordPress 6.5.3
+= 2.5.1 2024-03-26 =
+* [Add] - Import and export order attribution data.
+* [Compatibility] - Tested OK with WordPress 6.5
+= 2.5.0 2024-03-20 =
+* [Fix] -  Vulnerable to PHP Object Injection.
+* [Improvement] - Implemented a user interface update for the import/export screen, transitioning to a card-based layout for post type selection.
+* [Compatibility] - Tested OK with WooCommerce 8.7.0
+= 2.4.9 2024-02-28 =
+* [Fix] - Enhanced Validation for Reading Log Files.
+* [Compatibility] - Tested OK with WooCommerce 8.6.1
+= 2.4.8 2024-02-08 =
+* [Fix] - Invalid File type CSV.
+* [Fix] - Unable to download downloadable products.
+* [Compatibility] - Tested OK with WooCommerce 8.5.2
+* [Compatibility] - Tested OK with WordPress 6.4.3
+= 2.4.7 2024-01-16 =
+* [Fix] - Invalid File type CSV.
+* [Compatibility] - Tested OK with WooCommerce 8.5
+= 2.4.6 2024-01-04 =
+* [Fix] - Conflict with order item meta key named quantity and quantity.
+* [Compatibility] - Tested OK with WooCommerce 8.4
+* [Compatibility] - Tested OK with PHP 8.3
 = 2.4.5 2023-12-28 =
 * [Fix] - Invalid File type CSV in Windows OS/Firefox.
 = 2.4.3 2023-12-08 =
@@ -554,5 +587,6 @@ Yes.
 
 == Upgrade Notice ==
 
-= 2.4.5 =
-* [Fix] - Invalid File type CSV in Windows OS/Firefox.
+= 2.5.5 =
+* [Compatibility] - Tested OK with WooCommerce 9.0.2
+* [Compatibility] - Tested OK with WordPress 6.5.5

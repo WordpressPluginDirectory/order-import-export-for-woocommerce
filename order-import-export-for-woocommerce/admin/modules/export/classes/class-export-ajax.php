@@ -26,6 +26,7 @@ class Wt_Import_Export_For_Woo_Basic_Export_Ajax
 	protected $last_page=false;
 	protected $total_steps=0;
 	protected $step_summary='';
+	protected $step_description='';
 	protected $mapping_enabled_fields=array();
 	protected $mapping_templates=array();
 	protected $selected_template=0;
@@ -505,6 +506,42 @@ class Wt_Import_Export_For_Woo_Basic_Export_Ajax
 			$advanced_form_data=(isset($this->selected_template_form_data['advanced_form_data']) ? $this->selected_template_form_data['advanced_form_data'] : array());
 
 			$advanced_screen_fields=$this->export_obj->get_advanced_screen_fields($advanced_form_data);
+			$link_array = array(
+				'order' => array(
+					'link'  => 'https://www.webtoffee.com/product/order-import-export-plugin-for-woocommerce/?utm_source=free_plugin_file_upload&utm_medium=basic_revamp&utm_campaign=Order_Import_Export',
+					'text' => 'Upgrade to Order Import Export Pro.',
+				),
+				'coupon' => array(
+					'link'  => 'https://www.webtoffee.com/product/order-import-export-plugin-for-woocommerce/?utm_source=free_plugin_file_upload&utm_medium=basic_revamp&utm_campaign=Order_Import_Export',
+					'text' => 'Upgrade to Order Import Export Pro.',
+				),
+				'product' => array(
+					'link' => 'https://www.webtoffee.com/product/product-import-export-woocommerce/?utm_source=free_plugin_file_upload&utm_medium=basic_revamp&utm_campaign=Product_Import_Export',
+					'text' => 'Upgrade to Product Import Export Pro.',
+				),
+				'product_review' => array(
+					'link' => 'https://www.webtoffee.com/product/product-import-export-woocommerce/?utm_source=free_plugin_file_upload&utm_medium=basic_revamp&utm_campaign=Product_Import_Export',
+					'text' => 'Upgrade to Product Import Export Pro.'
+
+				),
+				'product_categories' => array(
+					'link' => 'https://www.webtoffee.com/product/product-import-export-woocommerce/?utm_source=free_plugin_file_upload&utm_medium=basic_revamp&utm_campaign=Product_Import_Export',
+					'text' => 'Upgrade to Product Import Export Pro.'
+
+				),
+				'product_tags' => array(
+					'link' => 'https://www.webtoffee.com/product/product-import-export-woocommerce/?utm_source=free_plugin_file_upload&utm_medium=basic_revamp&utm_campaign=Product_Import_Export',
+					'text' => 'Upgrade to Product Import Export Pro.'
+
+				),
+				'user' => array(
+					'link' => 'https://www.webtoffee.com/product/wordpress-users-woocommerce-customers-import-export/?utm_source=free_plugin_file_upload&utm_medium=basic_revamp&utm_campaign=User_Import_Export',
+					'text' => 'Upgrade to User Import Export Pro.'
+
+				),
+		);
+		$link = $link_array[$this->to_export][ 'link'];
+		$text =$link_array[$this->to_export][ 'text'];
 			
 			ob_start();
 			$this->prepare_step_header_html();
@@ -598,6 +635,7 @@ class Wt_Import_Export_For_Woo_Basic_Export_Ajax
 		$this->last_page=(!isset($this->step_keys[$this->current_step_index+1]) ? true : false);
 		$this->total_steps=count($this->step_keys);
 		$this->step_summary=__(sprintf("Step %d of %d", $this->current_step_number, $this->total_steps));
+		$this->step_description = $step_info['description'];
 	}
 
 	protected function prepare_step_header_html()

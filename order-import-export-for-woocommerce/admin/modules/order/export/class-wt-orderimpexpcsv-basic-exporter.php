@@ -178,14 +178,31 @@ class Wt_Import_Export_For_Woo_Basic_Order_Bulk_Export {
     }
 
     public static function format_data($data) {
-        if (!is_array($data))
-            ;
-        $data = (string) urldecode($data);
-        $enc = mb_detect_encoding($data, 'UTF-8, ISO-8859-1', true);
-        $data = ( $enc == 'UTF-8' ) ? $data : utf8_encode($data);
-        return $data;
-    }
+		if (!is_array($data))
+			;
+		$data = (string) urldecode($data);
 
+		if (function_exists('mb_convert_encoding') &&  function_exists('mb_convert_encoding')) {
+			$encoding = mb_detect_encoding( $data, mb_detect_order(), true );
+			if ( $encoding ) {
+				return mb_convert_encoding( $data, 'UTF-8', $encoding );
+			} else {
+				return mb_convert_encoding( $data, 'UTF-8', 'UTF-8' );
+			}
+		}else{
+			$newcharstring = '';
+			$bom = apply_filters('wt_import_csv_parser_keep_bom', true);
+			if ($bom) {
+				$newcharstring .= "\xEF\xBB\xBF";
+			}
+			for ($i = 0; $i < strlen($data); $i++) {
+				$charval = ord($data[$i]);
+				$newcharstring .= Wt_Import_Export_For_Woo_Basic_Common_Helper::wt_iconv_fallback_int_utf8($charval);
+			}
+			return $newcharstring;
+		} 
+	}
+	
     /**
      * Wrap a column in quotes for the CSV
      * @param  string data to wrap
@@ -506,7 +523,11 @@ class Wt_Import_Export_For_Woo_Basic_Order_Bulk_Export {
 
          if (self::$is_wc_stripe_active):
             $stripe_fee = get_post_meta($order_data['order_id'], '_stripe_fee', true);
-            $order_data['meta:_stripe_fees'] = empty($stripe_fee) ? '' : json_encode($stripe_fee);
+            $stripe_currency = get_post_meta($order_data['order_id'], '_stripe_currency', true);
+            $stripe_net = get_post_meta($order_data['order_id'], '_stripe_net', true);
+            $order_data['meta:_stripe_fee'] = empty($stripe_fee) ? '' : json_encode($stripe_fee);
+            $order_data['meta:_stripe_currency'] = empty($stripe_currency) ? '' : json_encode($stripe_currency);
+            $order_data['meta:_stripe_net'] = empty($stripe_net) ? '' : json_encode($stripe_net);
          endif; 
 
         $li = 1;

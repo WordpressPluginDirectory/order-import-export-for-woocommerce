@@ -122,11 +122,8 @@ class Wt_Import_Export_For_Woo_Basic_Import_Ajax
 		{
 
 			$is_file_type_allowed=false;
-			$upload_file_details = wp_check_filetype($_FILES['wt_iew_import_file']['name']);
-
-			$allowed_mime_types = apply_filters('wt_iew_custom_import_allowed_mime_types', $this->import_obj->allowed_mime_types);
-			
-			if(in_array($_FILES['wt_iew_import_file']['type'], $allowed_mime_types) && 'text/csv' === $upload_file_details['type'] && 'csv' === $upload_file_details['ext'] ) /* Not allowed file type. [Bug fix for Windows OS]Then verify it again with file extension */
+			$ext=pathinfo($_FILES['wt_iew_import_file']['name'], PATHINFO_EXTENSION);
+			if(isset($this->import_obj->allowed_import_file_type_mime[$ext])) /* extension exists. */
 			{
 				$is_file_type_allowed=true;
 			}
@@ -167,7 +164,7 @@ class Wt_Import_Export_For_Woo_Basic_Import_Ajax
 				}
 			}else
 			{
-				$out['msg']=sprintf(__('Invalid file type. Only %s are allowed.'), implode(", ", array_values($this->import_obj->allowed_import_file_type)));
+				$out['msg']=sprintf(__('Invalid file type. Only %s is allowed.'), implode(", ", array_values($this->import_obj->allowed_import_file_type)));
 			}
 		}
 
@@ -581,6 +578,7 @@ class Wt_Import_Export_For_Woo_Basic_Import_Ajax
 		$post_types=apply_filters('wt_iew_importer_post_types_basic', array());
 		$post_types=(!is_array($post_types) ? array() : $post_types);
 		$this->step='post_type';
+		$item_type=$this->to_import;
 		
 		$this->prepare_step_summary();
 		$this->prepare_footer_button_list();
@@ -627,6 +625,42 @@ class Wt_Import_Export_For_Woo_Basic_Import_Ajax
 
 			/* meta field list for quick import */
 			$this->get_mapping_templates();
+			$link_array = array(
+				'order' => array(
+					'link'  => 'https://www.webtoffee.com/product/order-import-export-plugin-for-woocommerce/?utm_source=free_plugin_file_upload&utm_medium=basic_revamp&utm_campaign=Order_Import_Export',
+					'text' => 'Upgrade to Order Import Export Pro.',
+				),
+				'coupon' => array(
+					'link'  => 'https://www.webtoffee.com/product/order-import-export-plugin-for-woocommerce/?utm_source=free_plugin_file_upload&utm_medium=basic_revamp&utm_campaign=Order_Import_Export',
+					'text' => 'Upgrade to Order Import Export Pro.',
+				),
+				'product' => array(
+					'link' => 'https://www.webtoffee.com/product/product-import-export-woocommerce/?utm_source=free_plugin_file_upload&utm_medium=basic_revamp&utm_campaign=Product_Import_Export',
+					'text' => 'Upgrade to Product Import Export Pro.',
+				),
+				'product_review' => array(
+					'link' => 'https://www.webtoffee.com/product/product-import-export-woocommerce/?utm_source=free_plugin_file_upload&utm_medium=basic_revamp&utm_campaign=Product_Import_Export',
+					'text' => 'Upgrade to Product Import Export Pro.'
+
+				),
+				'product_categories' => array(
+					'link' => 'https://www.webtoffee.com/product/product-import-export-woocommerce/?utm_source=free_plugin_file_upload&utm_medium=basic_revamp&utm_campaign=Product_Import_Export',
+					'text' => 'Upgrade to Product Import Export Pro.'
+
+				),
+				'product_tags' => array(
+					'link' => 'https://www.webtoffee.com/product/product-import-export-woocommerce/?utm_source=free_plugin_file_upload&utm_medium=basic_revamp&utm_campaign=Product_Import_Export',
+					'text' => 'Upgrade to Product Import Export Pro.'
+
+				),
+				'user' => array(
+					'link' => 'https://www.webtoffee.com/product/wordpress-users-woocommerce-customers-import-export/?utm_source=free_plugin_file_upload&utm_medium=basic_revamp&utm_campaign=User_Import_Export',
+					'text' => 'Upgrade to User Import Export Pro.'
+
+				),
+		);
+		$link = $link_array[$this->to_import][ 'link'];
+		$text =$link_array[$this->to_import][ 'text'];
 
 			ob_start();		
 			$this->prepare_step_header_html();
