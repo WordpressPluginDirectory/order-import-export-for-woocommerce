@@ -114,10 +114,8 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
         return $export_columns;
     }
     
-    public function wt_line_item_separate_row_csv_data($order_export_data, $order_data_filter_args) {
+    public function wt_line_item_separate_row_csv_data($order, $order_export_data, $order_data_filter_args) {
 
-        $order_id = $order_export_data['order_id'];
-        $order = wc_get_order($order_id);
         $row = array();
         if ($order) {
             foreach ($order->get_items() as $item_key => $item) {
@@ -179,8 +177,8 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
         $export_order_statuses = !empty($form_data['filter_form_data']['wt_iew_order_status']) ? $form_data['filter_form_data']['wt_iew_order_status'] : 'any';
         $products = !empty($form_data['filter_form_data']['wt_iew_products']) ? $form_data['filter_form_data']['wt_iew_products'] : '';
         $email = !empty($form_data['filter_form_data']['wt_iew_email']) ? $form_data['filter_form_data']['wt_iew_email'] : array(); // user email fields return user ids
-        $start_date = !empty($form_data['filter_form_data']['wt_iew_date_from']) ? $form_data['filter_form_data']['wt_iew_date_from'] . ' 00:00:00' : date('Y-m-d 00:00:00', 0);
-        $end_date = !empty($form_data['filter_form_data']['wt_iew_date_to']) ? $form_data['filter_form_data']['wt_iew_date_to'] . ' 23:59:59.99' : date('Y-m-d 23:59:59.99', current_time('timestamp'));        
+        $start_date = !empty($form_data['filter_form_data']['wt_iew_date_from']) ? $form_data['filter_form_data']['wt_iew_date_from'] . ' 00:00:00' : wp_date('Y-m-d 00:00:00', 0);
+        $end_date = !empty($form_data['filter_form_data']['wt_iew_date_to']) ? $form_data['filter_form_data']['wt_iew_date_to'] . ' 23:59:59.99' : wp_date('Y-m-d 23:59:59.99', current_time('timestamp'));        
         $coupons = !empty($form_data['filter_form_data']['wt_iew_coupons']) ? $form_data['filter_form_data']['wt_iew_coupons'] : array();
         $orders = !empty($form_data['filter_form_data']['wt_iew_orders']) ? array_filter(explode(',', strtolower($form_data['filter_form_data']['wt_iew_orders'])),'trim') : array();
 
@@ -241,7 +239,9 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
                     }else{
                         $exclude_query = "SELECT ID FROM $wpdb->posts as pt LEFT JOIN $wpdb->postmeta as pmt ON pt.ID = pmt.post_id AND pmt.meta_key = 'wf_order_exported_status' WHERE pmt.post_id IS NULL";
                     }
-                    $exclude_already_exported_orders = $wpdb->get_col($exclude_query);  
+                    // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Its necessary to use direct database query.
+                    $exclude_already_exported_orders = $wpdb->get_col($exclude_query); 
+                    // phpcs:enable
                 } 
                 if (!empty($email) && empty($products) && empty($coupons)) {
                     $args = array(
@@ -333,8 +333,10 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
 						if($this->hpos_sync){
 							update_post_meta($order_id, 'wf_order_exported_status', TRUE);
 						}
+						// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Its necessary to use direct database query.
 						$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}wc_orders_meta WHERE meta_key = 'wf_order_exported_status' AND order_id = %d;", $order_id ) );
 						$wpdb->query( $wpdb->prepare( "INSERT INTO {$wpdb->prefix}wc_orders_meta (order_id, meta_key, meta_value) VALUES (%d, %s, %s)", $order_id, 'wf_order_exported_status', TRUE ) ) ;
+						// phpcs:enable
 					}else{
 						update_post_meta($order_id, 'wf_order_exported_status', TRUE);
 					} 
@@ -347,7 +349,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
             $return['total'] = $total_records;
             $return['data'] = $data_array;
             if( 0 == $batch_offset && 0 == $total_records ){
-				$return['no_post'] = __( 'Nothing to export under the selected criteria.' );
+				$return['no_post'] = esc_html__( 'Nothing to export under the selected criteria.', 'order-import-export-for-woocommerce' );
 		    }
             return $return;
         } 
@@ -357,6 +359,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
     public function generate_row_data($order_id) {
 
         $csv_columns = $this->prepare_header();
+        $version = WC()->version;
      
         $row = array();
         // Get an instance of the WC_Order object
@@ -366,15 +369,15 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
         // get line items
         foreach ($order->get_items() as $item_id => $item) {
             /* WC_Abstract_Legacy_Order::get_product_from_item() deprecated since version 4.4.0*/
-            $product = (WC()->version < '4.4.0') ? $order->get_product_from_item($item) : $item->get_product();  
+            $product = ( version_compare( $version, '4.4.0', '<' ) ) ? $order->get_product_from_item($item) : $item->get_product();  
             if (!is_object($product)) {
                 $product = new WC_Product(0);
             }
             $item_meta = self::get_order_line_item_meta($item_id);
-            $prod_type = (WC()->version < '3.0.0') ? $product->product_type : $product->get_type();
+            $prod_type = ( version_compare( $version, '3.0.0', '<' ) ) ? $product->product_type : $product->get_type();
             $line_item = array(
                 'name' => html_entity_decode(!empty($item['name']) ? $item['name'] : $product->get_title(), ENT_NOQUOTES, 'UTF-8'),
-                'product_id' => (WC()->version < '2.7.0') ? $product->id : (($prod_type == 'variable' || $prod_type == 'variation' || $prod_type == 'subscription_variation') ? $product->get_parent_id() : $product->get_id()),
+                'product_id' => ( version_compare( $version, '2.7.0', '<' ) ) ? $product->id : (($prod_type == 'variable' || $prod_type == 'variation' || $prod_type == 'subscription_variation') ? $product->get_parent_id() : $product->get_id()),
                 'sku' => $product->get_sku(),
                 'quantity' => $item['qty'],
                 'total' => wc_format_decimal($order->get_line_total($item), 2),
@@ -420,44 +423,64 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
             }
 
             if ($prod_type === 'variable' || $prod_type === 'variation' || $prod_type === 'subscription_variation') {
-                $line_item['_variation_id'] = (WC()->version > '2.7') ? $product->get_id() : $product->variation_id;
+                $line_item['_variation_id'] = ( version_compare( $version, '2.7', '>' ) ) ? $product->get_id() : $product->variation_id;
             }
             $line_items[] = $line_item;
         }
         
 
-        //shipping items is just product x qty under shipping method
-        $line_items_shipping = $order->get_items('shipping');
+		// Get shipping line items from the order
+		$line_items_shipping = $order->get_items('shipping');
 
-        foreach ($line_items_shipping as $item_id => $item) {
-            $item_meta = self::get_order_line_item_meta($item_id);
-            foreach ($item_meta as $key => $value) {
-                switch ($key) {
-                    case 'Items':
-           
-                    case 'method_id':
-                       
-                    case 'taxes':
-    
-                        if (is_object($value)){
-                            $value = $value->meta_value;
-                            $value = json_encode(maybe_unserialize($value));
-                        }
+		foreach ($line_items_shipping as $item_id => $item) {
+			$meta = array();
 
-                        if (is_array($value))
-                            $value = json_encode($value);
-                        $meta[$key] = $value;
-                        break;
-                }
-            }
-            foreach (array('Items','method_id', 'taxes') as $value) {
-                if (!isset($meta[$value])) {
-                    $meta[$value] = '';
-                }
-            }
-            $shipping_items[] = trim(implode('|', array('items:' . $meta['Items'],'method_id:' . $meta['method_id'], 'taxes:' . $meta['taxes'])));
-        }
+			// Manually build the "Items" field by listing all order products with quantity
+			$items_array = array();
+			foreach ($order->get_items() as $line_item) {
+				$product = $line_item->get_product();
+				$product_name = $product ? $product->get_name() : $line_item->get_name(); // Fallback to item name if product object is unavailable
+				$qty = $line_item->get_quantity();
+				$items_array[] = $product_name . ' &times; ' . $qty; 
+			}
 
+			// Concatenate all item strings into a single string for the Items field
+			$meta['Items'] = implode(', ', $items_array);
+
+			// Assign shipping method ID without wrapping in quotes
+			$meta['method_id'] = isset($item['method_id']) ? $item['method_id'] : '';
+
+            /**
+             * Retrieve taxes from meta and serialize (match original format).
+             * 
+             *  2.6.4 - take tax data using woocommerce default function.
+             */
+			$taxes = $item->get_taxes();
+            
+			if (is_array($taxes) || is_object($taxes)) {
+				// Serialize arrays/objects into PHP serialized format
+				$meta['taxes'] = serialize($taxes);
+			} else {
+				// Use raw value if already a string
+				$meta['taxes'] = is_string($taxes) ? $taxes : '';
+			}
+
+			// Ensure all expected keys exist in the meta array
+			foreach (array('Items', 'method_id', 'taxes') as $value) {
+				if (!isset($meta[$value])) {
+					$meta[$value] = '';
+				}
+			}
+
+			// Concatenate the shipping meta into the expected export format
+			$shipping_items[] = trim(implode('|', array(
+				'items:' . $meta['Items'],
+				'method_id:' . $meta['method_id'],
+				'taxes:' . $meta['taxes']
+			)));
+		}
+
+        
         //get fee and total
         $fee_total = 0;
         $fee_tax_total = 0;
@@ -488,9 +511,9 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
 
 		// Add coupons.
 		foreach ($order->get_items('coupon') as $_ => $coupon_item) {
-			$discount_amount = (WC()->version < '4.4.0') ? $coupon_item['discount_amount'] : $coupon_item->get_discount();
+			$discount_amount = ( version_compare( $version, '4.4.0', '<' ) ) ? $coupon_item['discount_amount'] : $coupon_item->get_discount();
 			$discount_amount = !empty($discount_amount) ? $discount_amount : 0;
-			$coupon_code = (WC()->version < '4.4.0') ? $coupon_item['name'] : $coupon_item->get_code();
+			$coupon_code = ( version_compare( $version, '4.4.0', '<' ) ) ? $coupon_item['name'] : $coupon_item->get_code();
 			$coupon_items[] = implode('|', array(
 				'code:' . $coupon_code,
 				'amount:' . wc_format_decimal($discount_amount, 2),
@@ -499,17 +522,17 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
 
         foreach ($order->get_refunds() as $refunded_items) {
 
-            if ((WC()->version < '2.7.0')) {
+            if ( version_compare( $version, '2.7.0', '<' ) ) {
                 $refund_items[] = implode('|', array(
                     'amount:' . $refunded_items->get_refund_amount(),
                     'reason:' . $refunded_items->reason,
-                    'date:' . date('Y-m-d H:i:s', strtotime($refunded_items->date_created)),
+                    'date:' . wp_date('Y-m-d H:i:s', strtotime($refunded_items->date_created)),
                 ));
             } else {
                 $refund_items[] = implode('|', array(
                     'amount:' . $refunded_items->get_amount(),
                     'reason:' . $refunded_items->get_reason(),
-                    'date:' . date('Y-m-d H:i:s', strtotime($refunded_items->get_date_created())),
+                    'date:' . wp_date('Y-m-d H:i:s', strtotime($refunded_items->get_date_created())),
                 ));
             }
         }
@@ -520,16 +543,16 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
             $order_data = array(
                 'order_id' => $order->id,
                 'order_number' => $order->get_order_number(),
-                'order_date' => date('Y-m-d H:i:s', strtotime(get_post($order->id)->post_date)),
-                'paid_date' => isset($paid_date) ? date('Y-m-d H:i:s', $paid_date) : '',
+                'order_date' => wp_date('Y-m-d H:i:s', strtotime(get_post($order->id)->post_date)),
+                'paid_date' => isset($paid_date) ? wp_date('Y-m-d H:i:s', $paid_date) : '',
                 'status' => $order->get_status(),
                 'shipping_total' => $order->get_total_shipping(),
                 'shipping_tax_total' => wc_format_decimal($order->get_shipping_tax(), 2),
                 'fee_total' => wc_format_decimal($fee_total, 2),
                 'fee_tax_total' => wc_format_decimal($fee_tax_total, 2),
                 'tax_total' => wc_format_decimal($order->get_total_tax(), 2),
-                'cart_discount' => (defined('WC_VERSION') && (WC_VERSION >= 2.3)) ? wc_format_decimal($order->get_total_discount(), 2) : wc_format_decimal($order->get_cart_discount(), 2),
-                'order_discount' => (defined('WC_VERSION') && (WC_VERSION >= 2.3)) ? wc_format_decimal($order->get_total_discount(), 2) : wc_format_decimal($order->get_order_discount(), 2),
+                'cart_discount' => (defined('WC_VERSION') && version_compare(WC_VERSION, '2.3', '>=')) ? wc_format_decimal($order->get_total_discount(), 2) : (method_exists($order, 'get_cart_discount') ? wc_format_decimal($order->get_cart_discount(), 2) : '0.00'),
+                'order_discount' => (defined('WC_VERSION') && version_compare(WC_VERSION, '2.3', '>=')) ? wc_format_decimal($order->get_total_discount(), 2) : (method_exists($order, 'get_order_discount') ? wc_format_decimal($order->get_order_discount(), 2) : '0.00'),
                 'discount_total' => wc_format_decimal($order->get_discount_total(), 2),
                 'order_total' => wc_format_decimal($order->get_total(), 2),
                 'order_subtotal' => wc_format_decimal($order->get_subtotal(), 2), // Get order subtotal
@@ -578,9 +601,9 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
         } else {
             $paid_date = $order->get_date_paid();
             if(self::$is_hpos_enabled){
-                $order_date = date('Y-m-d H:i:s', strtotime( $order->get_date_created()));
+                $order_date = wp_date('Y-m-d H:i:s', strtotime( $order->get_date_created()));
             }else{
-                $order_date = date('Y-m-d H:i:s', strtotime(get_post($order->get_id())->post_date));
+                $order_date = wp_date('Y-m-d H:i:s', strtotime(get_post($order->get_id())->post_date));
             }
             $order_data = array(
                 'order_id' => $order->get_id(),
@@ -593,8 +616,8 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
                 'fee_total' => wc_format_decimal($fee_total, 2),
                 'fee_tax_total' => wc_format_decimal($fee_tax_total, 2),
                 'tax_total' => wc_format_decimal($order->get_total_tax(), 2),
-                'cart_discount' => (defined('WC_VERSION') && (WC_VERSION >= 2.3)) ? wc_format_decimal($order->get_total_discount(), 2) : wc_format_decimal($order->get_cart_discount(), 2),
-                'order_discount' => (defined('WC_VERSION') && (WC_VERSION >= 2.3)) ? wc_format_decimal($order->get_total_discount(), 2) : wc_format_decimal($order->get_order_discount(), 2),
+                'cart_discount' => (defined('WC_VERSION') && version_compare(WC_VERSION, '2.3', '>=')) ? wc_format_decimal($order->get_total_discount(), 2) : (method_exists($order, 'get_cart_discount') ? wc_format_decimal($order->get_cart_discount(), 2) : '0.00'),
+                'order_discount' => (defined('WC_VERSION') && version_compare(WC_VERSION, '2.3', '>=')) ? wc_format_decimal($order->get_total_discount(), 2) : (method_exists($order, 'get_order_discount') ? wc_format_decimal($order->get_order_discount(), 2) : '0.00'),
                 'discount_total' => wc_format_decimal($order->get_total_discount(), 2),
                 'order_total' => wc_format_decimal($order->get_total(), 2),
                 'order_subtotal' => wc_format_decimal($order->get_subtotal(), 2), // Get order subtotal
@@ -637,7 +660,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
                 'tax_items' => implode(';', $tax_items),
                 'coupon_items' => implode(';', $coupon_items),
                 'refund_items' => implode(';', $refund_items),
-                'order_notes' => implode('||', (defined('WC_VERSION') && (WC_VERSION >= 3.2)) ? self::get_order_notes_new($order) : self::get_order_notes($order)),
+                'order_notes' => implode('||', (defined('WC_VERSION') && version_compare(WC_VERSION, '3.2', '>=')) ? self::get_order_notes_new($order) : self::get_order_notes($order)),
                 'download_permissions' => $order->is_download_permitted() ? $order->is_download_permitted() : 0,                
             );
             
@@ -750,50 +773,58 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
         if ($this->export_to_separate_columns) {
 
             for ($i = 1; $i <= $max_line_items; $i++) {
-
-			        $order_export_data["line_item_{$i}_name"] = !empty($line_items[$i-1]['name']) ? $line_items[$i-1]['name'] : '';
-                    $order_export_data["line_item_{$i}_product_id"] = !empty($line_items[$i-1]['product_id']) ? $line_items[$i-1]['product_id'] : '';
-                    $order_export_data["line_item_{$i}_sku"] = !empty($line_items[$i-1]['sku']) ? $line_items[$i-1]['sku'] : '';
-                    $order_export_data["line_item_{$i}_quantity"] = !empty($line_items[$i-1]['quantity']) ? $line_items[$i-1]['quantity'] : '';
-                    $order_export_data["line_item_{$i}_total"] = !empty($line_items[$i-1]['total']) ? $line_items[$i-1]['total'] : '';
-                    $order_export_data["line_item_{$i}_subtotal"] = !empty($line_items[$i-1]['sub_total']) ? $line_items[$i-1]['sub_total'] : '';
+                $order_export_data["line_item_{$i}_name"] = !empty($line_items[$i-1]['name']) ? $line_items[$i-1]['name'] : '';
+                $order_export_data["line_item_{$i}_product_id"] = !empty($line_items[$i-1]['product_id']) ? $line_items[$i-1]['product_id'] : '';
+                $order_export_data["line_item_{$i}_sku"] = !empty($line_items[$i-1]['sku']) ? $line_items[$i-1]['sku'] : '';
+                $order_export_data["line_item_{$i}_quantity"] = !empty($line_items[$i-1]['quantity']) ? $line_items[$i-1]['quantity'] : '';
+                $order_export_data["line_item_{$i}_total"] = !empty($line_items[$i-1]['total']) ? $line_items[$i-1]['total'] : '';
+                $order_export_data["line_item_{$i}_subtotal"] = !empty($line_items[$i-1]['sub_total']) ? $line_items[$i-1]['sub_total'] : '';
             }
         }
         $order_data_filter_args = array('max_line_items' => $max_line_items);
         
         if ($this->export_to_separate_rows) {
-            $order_export_data = $this->wt_line_item_separate_row_csv_data($order_export_data, $order_data_filter_args);
+            $order_export_data = $this->wt_line_item_separate_row_csv_data($order, $order_export_data, $order_data_filter_args);
         } 
         return apply_filters('hf_alter_csv_order_data', $order_export_data, $order_data_filter_args);
     }
 
     public static function hf_get_orders_of_products($products, $export_order_statuses, $export_limit, $export_offset, $end_date, $start_date, $exclude_already_exported, $retun_count = false) {
         global $wpdb;
+        $placeholder_values = array();
         if(self::$is_hpos_enabled){
             $order_table = $wpdb->prefix.'wc_orders';
             $order_meta_table = $wpdb->prefix.'wc_orders_meta';
 
             $query = '';
-        $query .= "SELECT DISTINCT po.ID FROM {$order_table} AS po
-            LEFT JOIN  {$order_meta_table} AS pm ON pm.id = po.ID
-            LEFT JOIN {$wpdb->prefix}woocommerce_order_items AS oi ON oi.order_id = po.ID
-            LEFT JOIN {$wpdb->prefix}woocommerce_order_itemmeta AS om ON om.order_item_id = oi.order_item_id
-            WHERE po.type = 'shop_order'
-            AND oi.order_item_type = 'line_item'
-            AND om.meta_key IN ('_product_id','_variation_id')
-            AND om.meta_value IN ('" . implode("','", $products) . "')
-            AND (po.date_created_gmt BETWEEN '$start_date' AND '$end_date')";
-        if ($export_order_statuses != 'any') {
-            $query .= " AND po.status IN ( '" . implode("','", $export_order_statuses) . "' )";
-        }
+            $query .= "SELECT DISTINCT po.ID FROM {$order_table} AS po
+                LEFT JOIN  {$order_meta_table} AS pm ON pm.id = po.ID
+                LEFT JOIN {$wpdb->prefix}woocommerce_order_items AS oi ON oi.order_id = po.ID
+                LEFT JOIN {$wpdb->prefix}woocommerce_order_itemmeta AS om ON om.order_item_id = oi.order_item_id
+                WHERE po.type = 'shop_order'
+                AND oi.order_item_type = 'line_item'
+                AND om.meta_key IN ('_product_id','_variation_id')
+                AND om.meta_value IN (" . implode( ', ', array_fill( 0, count( $products ), '%d' ) ) . ")
+                AND (po.date_created_gmt BETWEEN %s AND %s)";
+            $placeholder_values = $products;
+            $placeholder_values[] = $start_date;
+            $placeholder_values[] = $end_date;
+            if ($export_order_statuses != 'any') {
+                $query .= " AND po.status IN ( " . implode( ', ', array_fill( 0, count( $export_order_statuses ), '%s' ) ) . " )";
+                $placeholder_values = array_merge( $placeholder_values, $export_order_statuses );
+            }
 
-        if ($exclude_already_exported) {
-            $query .= " AND pm.meta_key = 'wf_order_exported_status' AND pm.meta_value=1";
-        }
+            if ($exclude_already_exported) {
+                $query .= " AND pm.meta_key = 'wf_order_exported_status' AND pm.meta_value=1";
+            }
 
-        if ($retun_count == FALSE) {
-            $query .= " LIMIT " . intval($export_limit) . ' ' . (!empty($export_offset) ? 'OFFSET ' . intval($export_offset) : '');
-        }
+            if ($retun_count == FALSE) {
+                $query .= ' LIMIT %d' . ( ! empty( $export_offset ) ? ' OFFSET %d' : '' );
+                $placeholder_values[] = intval( $export_limit );
+                if ( ! empty( $export_offset ) ) {
+                    $placeholder_values[] = intval( $export_offset );
+                }
+            }
 
         }else{
             $query = '';
@@ -804,10 +835,14 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
                 WHERE po.post_type = 'shop_order'
                 AND oi.order_item_type = 'line_item'
                 AND om.meta_key IN ('_product_id','_variation_id')
-                AND om.meta_value IN ('" . implode("','", $products) . "')
-                AND (po.post_date BETWEEN '$start_date' AND '$end_date')";
+                AND om.meta_value IN (" . implode( ', ', array_fill( 0, count( $products ), '%d' ) ) . ")
+                AND (po.post_date BETWEEN %s AND %s)";
+            $placeholder_values = $products;
+            $placeholder_values[] = $start_date;
+            $placeholder_values[] = $end_date;
             if ($export_order_statuses != 'any') {
-                $query .= " AND po.post_status IN ( '" . implode("','", $export_order_statuses) . "' )";
+                $query .= " AND po.post_status IN ( " . implode( ', ', array_fill( 0, count( $export_order_statuses ), '%s' ) ) . " )";
+                $placeholder_values = array_merge( $placeholder_values, $export_order_statuses );
             }
 
             if ($exclude_already_exported) {
@@ -815,10 +850,16 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
             }
 
             if ($retun_count == FALSE) {
-                $query .= " LIMIT " . intval($export_limit) . ' ' . (!empty($export_offset) ? 'OFFSET ' . intval($export_offset) : '');
+                $query .= ' LIMIT %d' . ( ! empty( $export_offset ) ? ' OFFSET %d' : '' );
+                $placeholder_values[] = intval( $export_limit );
+                if ( ! empty( $export_offset ) ) {
+                    $placeholder_values[] = intval( $export_offset );
+                }
             }
         }
-        $order_ids = $wpdb->get_col($query);
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Its necessary to use direct database query.
+        $order_ids = $wpdb->get_col($wpdb->prepare($query, $placeholder_values));
+        // phpcs:enable
 
         if ($retun_count == TRUE) {
             return count($order_ids);
@@ -828,6 +869,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
 
     public static function hf_get_orders_of_coupons($coupons, $export_order_statuses, $export_limit, $export_offset, $end_date, $start_date, $exclude_already_exported, $retun_count = false) {
         global $wpdb;
+        $placeholder_values = array();
         if(self::$is_hpos_enabled){
             $order_table = $wpdb->prefix.'wc_orders';
             $order_meta_table = $wpdb->prefix.'wc_orders_meta';
@@ -838,10 +880,14 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
             LEFT JOIN {$wpdb->prefix}woocommerce_order_itemmeta AS om ON om.order_item_id = oi.order_item_id
             WHERE po.type = 'shop_order'
             AND oi.order_item_type = 'coupon'
-            AND oi.order_item_name IN ('" . implode("','", $coupons) . "')
-            AND (po.date_created_gmt BETWEEN '$start_date' AND '$end_date')";
+            AND oi.order_item_name IN (" . implode( ', ', array_fill( 0, count( $coupons ), '%s' ) ) . ")
+            AND (po.date_created_gmt BETWEEN %s AND %s)";
+            $placeholder_values = $coupons;
+            $placeholder_values[] = $start_date;
+            $placeholder_values[] = $end_date;
         if ($export_order_statuses != 'any') {
-            $query .= " AND po.status IN ( '" . implode("','", $export_order_statuses) . "' )";
+            $query .= " AND po.status IN ( " . implode( ', ', array_fill( 0, count( $export_order_statuses ), '%s' ) ) . " )";
+            $placeholder_values = array_merge( $placeholder_values, $export_order_statuses );
         }
         if ($export_order_statuses == 'any') {
             $defualt_exclude_status = get_post_stati(array('exclude_from_search' => true));
@@ -851,13 +897,18 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
                     unset($stati[$key]);
                 }
             }
-            $query .= " AND po.status IN ( '" . implode("','", $stati) . "' )";
+            $query .= " AND po.status IN ( " . implode( ', ', array_fill( 0, count( $stati ), '%s' ) ) . " )";
+            $placeholder_values = array_merge( $placeholder_values, $stati );
         }
         if ($exclude_already_exported) {
             $query .= " AND pm.meta_key = 'wf_order_exported_status' AND pm.meta_value=1";
         }
         if ($retun_count == FALSE) {
-            $query .= " LIMIT " . intval($export_limit) . ' ' . (!empty($export_offset) ? 'OFFSET ' . intval($export_offset) : '');
+            $query .= ' LIMIT %d' . ( ! empty( $export_offset ) ? ' OFFSET %d' : '' );
+            $placeholder_values[] = intval( $export_limit );
+            if ( ! empty( $export_offset ) ) {
+                $placeholder_values[] = intval( $export_offset );
+            }
         }
         }else{
             $query = "SELECT DISTINCT po.ID FROM {$wpdb->posts} AS po
@@ -866,31 +917,41 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
             LEFT JOIN {$wpdb->prefix}woocommerce_order_itemmeta AS om ON om.order_item_id = oi.order_item_id
             WHERE po.post_type = 'shop_order'
             AND oi.order_item_type = 'coupon'
-            AND oi.order_item_name IN ('" . implode("','", $coupons) . "')
-            AND (po.post_date BETWEEN '$start_date' AND '$end_date')";
-        if ($export_order_statuses != 'any') {
-            $query .= " AND po.post_status IN ( '" . implode("','", $export_order_statuses) . "' )";
-        }
-        if ($export_order_statuses == 'any') {
-            $defualt_exclude_status = get_post_stati(array('exclude_from_search' => true));
-            $stati = array_values(get_post_stati());
-            foreach ($stati as $key => $status) {
-                if (in_array($status, $defualt_exclude_status, true)) {
-                    unset($stati[$key]);
+            AND oi.order_item_name IN (" . implode( ', ', array_fill( 0, count( $coupons ), '%s' ) ) . ")
+            AND (po.post_date BETWEEN %s AND %s)";
+            $placeholder_values = $coupons;
+            $placeholder_values[] = $start_date;
+            $placeholder_values[] = $end_date;
+            if ($export_order_statuses != 'any') {
+                $query .= " AND po.post_status IN ( " . implode( ', ', array_fill( 0, count( $export_order_statuses ), '%s' ) ) . " )";
+                $placeholder_values = array_merge( $placeholder_values, $export_order_statuses );
+            }
+            if ($export_order_statuses == 'any') {
+                $defualt_exclude_status = get_post_stati(array('exclude_from_search' => true));
+                $stati = array_values(get_post_stati());
+                foreach ($stati as $key => $status) {
+                    if (in_array($status, $defualt_exclude_status, true)) {
+                        unset($stati[$key]);
+                    }
+                }
+                $query .= " AND po.post_status IN ( " . implode( ', ', array_fill( 0, count( $stati ), '%s' ) ) . " )";
+                $placeholder_values = array_merge( $placeholder_values, $stati );
+            }
+            if ($exclude_already_exported) {
+                $query .= " AND pm.meta_key = 'wf_order_exported_status' AND pm.meta_value=1";
+            }
+            if ($retun_count == FALSE) {
+                $query .= ' LIMIT %d' . ( ! empty( $export_offset ) ? ' OFFSET %d' : '' );
+                $placeholder_values[] = intval( $export_limit );
+                if ( ! empty( $export_offset ) ) {
+                    $placeholder_values[] = intval( $export_offset );
                 }
             }
-            $query .= " AND po.post_status IN ( '" . implode("','", $stati) . "' )";
         }
-        if ($exclude_already_exported) {
-            $query .= " AND pm.meta_key = 'wf_order_exported_status' AND pm.meta_value=1";
-        }
-        if ($retun_count == FALSE) {
-            $query .= " LIMIT " . intval($export_limit) . ' ' . (!empty($export_offset) ? 'OFFSET ' . intval($export_offset) : '');
-        }
-        }
-        
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared -- Its necessary to use direct database query.
+        $order_ids = $wpdb->get_col($wpdb->prepare($query, $placeholder_values));
+        // phpcs:enable
 
-        $order_ids = $wpdb->get_col($query);
         if ($retun_count == TRUE) {
             return count($order_ids);
         }
@@ -900,35 +961,43 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
     public static function get_all_line_item_metakeys() {
         global $wpdb;
         $filter_meta = apply_filters('wt_order_export_select_line_item_meta', array());
-        $filter_meta = !empty($filter_meta) ? implode("','", $filter_meta) : '';
+        
         $query = "SELECT DISTINCT om.meta_key
             FROM {$wpdb->prefix}woocommerce_order_itemmeta AS om 
             INNER JOIN {$wpdb->prefix}woocommerce_order_items AS oi ON om.order_item_id = oi.order_item_id
-            WHERE oi.order_item_type = 'line_item'";
-        if (!empty($filter_meta)) {
-            $query .= " AND om.meta_key IN ('" . $filter_meta . "')";
+            WHERE oi.order_item_type = %s";
+        $placeholder_values = array('line_item');
+        if ( ! empty( $filter_meta ) ) {
+            $query .= " AND om.meta_key IN (" . implode( ', ', array_fill( 0, count( $filter_meta ), '%s' ) ) . ")";
+            $placeholder_values = array_merge( $placeholder_values, $filter_meta );
         }
-        $meta_keys = $wpdb->get_col($query);
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Its necessary to use direct database query.
+        $meta_keys = $wpdb->get_col($wpdb->prepare($query, $placeholder_values));
+        // phpcs:enable
         return $meta_keys;
     }
 
     public static function get_order_line_item_meta($item_id) {
         global $wpdb;
         $filtered_meta = apply_filters('wt_order_export_select_line_item_meta', array());
-        $filtered_meta = !empty($filtered_meta) ? implode("','", $filtered_meta) : '';
+        $placeholder_values = array();
         $query = "SELECT meta_key,meta_value
-            FROM {$wpdb->prefix}woocommerce_order_itemmeta WHERE order_item_id = '$item_id'";
+            FROM {$wpdb->prefix}woocommerce_order_itemmeta WHERE order_item_id = %d";
+        $placeholder_values[] = $item_id;
         if (!empty($filtered_meta)) {
-            $query .= " AND meta_key IN ('" . $filtered_meta . "')";
+            $query .= " AND meta_key IN (" . implode( ', ', array_fill( 0, count( $filtered_meta ), '%s' ) ) . ")";
+            $placeholder_values = array_merge( $placeholder_values, $filtered_meta );
         }
-        $meta_keys = $wpdb->get_results($query, OBJECT_K);
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Its necessary to use direct database query.
+        $meta_keys = $wpdb->get_results($wpdb->prepare($query, $placeholder_values), OBJECT_K);
+        // phpcs:enable
         return $meta_keys;
     }
 
     public static function get_order_notes($order) {
         $callback = array('WC_Comments', 'exclude_order_comments');
         $args = array(
-            'post_id' => (WC()->version < '2.7.0') ? $order->id : $order->get_id(),
+            'post_id' => ( version_compare( WC()->version, '2.7.0', '<' ) ) ? $order->id : $order->get_id(),
             'approve' => 'approve',
             'type' => 'order_note'
         );
@@ -1010,7 +1079,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
         switch ($meta) {
             case '_sale_price_dates_from' :
             case '_sale_price_dates_to' :
-                return $meta_value ? date('Y-m-d', $meta_value) : '';
+                return $meta_value ? wp_date('Y-m-d', $meta_value) : '';
                 break;
             case '_upsell_ids' :
             case '_crosssell_ids' :
@@ -1071,8 +1140,10 @@ class Wt_Import_Export_For_Woo_Basic_Order_Export {
     public static function get_max_line_items() {
         
 		global $wpdb;
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Its necessary to use direct database query.
 		$query_line_items = "select COUNT(p.order_id) AS ttal from {$wpdb->prefix}woocommerce_order_items as p where order_item_type ='line_item' GROUP BY p.order_id ORDER BY ttal DESC LIMIT 1";
 		$line_item_keys = $wpdb->get_col($query_line_items);
+        // phpcs:enable
 		$max_line_items = $line_item_keys[0];
 		return $max_line_items;
     }

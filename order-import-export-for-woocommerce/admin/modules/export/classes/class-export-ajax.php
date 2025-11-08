@@ -49,9 +49,16 @@ class Wt_Import_Export_For_Woo_Basic_Export_Ajax
 	*/
 	public function get_steps($out)
 	{
-		//sleep(3);
-		$steps=(is_array($_POST['steps']) ? $_POST['steps'] : array($_POST['steps']));
-		$steps=Wt_Iew_Sh::sanitize_item($steps, 'text_arr');
+		// phpcs:disable WordPress.Security.NonceVerification.Missing -- Nonce verification done in the ajax_main() method.
+		$steps = array();
+		if (isset($_POST['steps'])) {
+			if (is_array($_POST['steps'])) {
+				$steps = array_filter(array_map('sanitize_text_field', wp_unslash($_POST['steps'])));
+			} else {
+				$steps = array(sanitize_text_field(wp_unslash($_POST['steps'])));
+			}
+		}
+		// phpcs:enable
 		$page_html=array();
 
 		if($this->selected_template>0) /* taking selected tamplate form_data */
@@ -117,7 +124,7 @@ class Wt_Import_Export_For_Woo_Basic_Export_Ajax
 
 		$meta_mapping_screen_fields=apply_filters('wt_iew_exporter_alter_meta_mapping_fields_basic', $meta_mapping_screen_fields, $this->to_export, $form_data_meta_mapping_fields);
 		
-		$draggable_tooltip=__("Drag to rearrange the columns");
+		$draggable_tooltip=__("Drag to rearrange the columns", 'order-import-export-for-woocommerce');
 		$module_url=plugin_dir_url(dirname(__FILE__));
 
 		$meta_html=array();
@@ -159,7 +166,8 @@ class Wt_Import_Export_For_Woo_Basic_Export_Ajax
 	*/
 	public function upload($out)
 	{
-		$export_id=(isset($_POST['export_id']) ? intval($_POST['export_id']) : 0);
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verification done in the ajax_main() method.
+		$export_id=(isset($_POST['export_id']) ? intval(wp_unslash($_POST['export_id'])) : 0);
 		$out=$this->export_obj->process_upload('upload', $export_id, $this->to_export);
 		if($out['response']===true)
 		{			
@@ -179,39 +187,45 @@ class Wt_Import_Export_For_Woo_Basic_Export_Ajax
 	*/
 	public function export($out)
 	{
-		$offset=(isset($_POST['offset']) ? intval($_POST['offset']) : 0);
-		$export_id=(isset($_POST['export_id']) ? intval($_POST['export_id']) : 0);
+		// phpcs:disable WordPress.Security.NonceVerification.Missing -- Nonce verification done in the ajax_main() method.
+		$offset = (isset($_POST['offset']) ? intval(wp_unslash($_POST['offset'])) : 0);
+		$export_id = (isset($_POST['export_id']) ? intval(wp_unslash($_POST['export_id'])) : 0);
 		$file_name='';
 
-		if($export_id==0) /* first batch */
-		{
+		if($export_id == 0) { /* first batch */
+		
 			/* process form data */
-			$form_data=(isset($_POST['form_data']) ? Wt_Import_Export_For_Woo_Basic_Common_Helper::process_formdata(maybe_unserialize(($_POST['form_data']))) : array());
-
-			//sanitize form data
-			$form_data=Wt_Iew_IE_Basic_Helper::sanitize_formdata($form_data, $this->export_obj);
+			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized using Wt_Iew_Sh::sanitize_item().
+			$form_data_raw = isset($_POST['form_data']) ? Wt_Iew_Sh::sanitize_item(wp_unslash($_POST['form_data']), 'text_arr') : array();
+			$unserialized_data = is_array($form_data_raw) ? 
+				array_map(function($item) {
+					return is_string($item) ? json_decode($item, true) : $item;
+				}, $form_data_raw) : 
+				json_decode($form_data_raw, true);
+			
+			$form_data = (isset($_POST['form_data']) ? Wt_Import_Export_For_Woo_Basic_Common_Helper::process_formdata($unserialized_data) : array());
+			$form_data = Wt_Iew_IE_Basic_Helper::sanitize_formdata($form_data, $this->export_obj);
 
 			/* taking file name from user input. (If given) */
 			if(isset($form_data['advanced_form_data']) && isset($form_data['advanced_form_data']['wt_iew_file_name']) && $form_data['advanced_form_data']['wt_iew_file_name']!="")
 			{
-				$file_name=$form_data['advanced_form_data']['wt_iew_file_name'];
+				$file_name = $form_data['advanced_form_data']['wt_iew_file_name'];
 			}
 
-		}else
-		{
+		} else {
 			/* no need to send form_data. It will take from history table by `process_action` method */
-			$form_data=array();
+			$form_data = array();
 		}
 		
 		/* do the export process */
-		$out=$this->export_obj->process_action($form_data, 'export', $this->to_export, $file_name, $export_id, $offset);
-		if($out['response']===true)
+		$out = $this->export_obj->process_action($form_data, 'export', $this->to_export, $file_name, $export_id, $offset);
+		if($out['response'] === true)
 		{			
-			$out['status']=1;
-		}else
-		{
-			$out['status']=0;
+			$out['status'] = 1;
+		} else {
+			$out['status'] = 0;
 		}
+		// phpcs:enable
 		return $out;
 	}
 
@@ -222,109 +236,110 @@ class Wt_Import_Export_For_Woo_Basic_Export_Ajax
 	*/
 	public function do_save_template($step, $out)
 	{
-		$is_update=($step=='update' ? true : false);
+		// phpcs:disable WordPress.Security.NonceVerification.Missing -- Nonce verification done in the ajax_main() method.
+		$is_update = ($step == 'update' ? true : false);
 
 		/* take template name from post data, if not then create from time stamp */
-		$template_name=(isset($_POST['template_name']) ? sanitize_text_field($_POST['template_name']) : date('d-M-Y h:i:s A'));
+		$template_name = (isset($_POST['template_name']) ? sanitize_text_field(wp_unslash($_POST['template_name'])) : gmdate('d-M-Y h:i:s A'));
 		
 		$template_name = stripslashes($template_name);
 		$out['name']= $template_name;
-		$out['id']=0;
-		$out['status']=1;
+		$out['id'] = 0;
+		$out['status'] = 1;
 
-		if($this->to_export!='')
+		if($this->to_export != '')
 		{
 			global $wpdb;
 
 			/* checking: just saved and again click the button so shift the action as update */
-			if($step=='save' && $this->selected_template>0) 
+			if($step == 'save' && $this->selected_template > 0) 
 			{
-				$is_update=true;
+				$is_update = true;
 			}
 
 			/* checking template with same name exists */
-			$template_data=$this->get_mapping_template_by_name($template_name);
-			if($template_data)
-			{
-				$is_throw_warn=false;
-				if($is_update)
-				{
-					if($template_data['id']!=$this->selected_template)
-					{
-						$is_throw_warn=true;
+			$template_data = $this->get_mapping_template_by_name($template_name);
+			if($template_data) {
+				$is_throw_warn = false;
+				if($is_update) {
+					if($template_data['id'] != $this->selected_template) {
+						$is_throw_warn = true;
 					}	
-				}else
-				{
-					$is_throw_warn=true;
+				} else {
+					$is_throw_warn = true;
 				}
 
-				if($is_throw_warn)
-				{
-					$out['status']=0;
-					if($step=='save_as')
-					{
-						$out['msg']=__('Please enter a different name');
-					}else
-					{
-						$out['msg']=__('Template with same name already exists');	
+				if($is_throw_warn) {
+					$out['status'] = 0;
+					if($step == 'save_as') {
+						$out['msg'] = esc_html__('Please enter a different name', 'order-import-export-for-woocommerce');
+					} else {
+						$out['msg'] = esc_html__('Template with same name already exists', 'order-import-export-for-woocommerce');	
 					}
 					return $out;
 				}		
 			}			
 
-			$tb=$wpdb->prefix. Wt_Import_Export_For_Woo_Basic::$template_tb;
+			$tb = $wpdb->prefix. Wt_Import_Export_For_Woo_Basic::$template_tb;
 			
 			/* process form data */
-			$form_data=(isset($_POST['form_data']) ? Wt_Import_Export_For_Woo_Basic_Common_Helper::process_formdata(maybe_unserialize(($_POST['form_data']))) : array());
+			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized using Wt_Iew_Sh::sanitize_item().
+			$form_data_raw = !empty($_POST['form_data']) ? Wt_Iew_Sh::sanitize_item(wp_unslash($_POST['form_data']), 'text_arr') : array();
+			$unserialized_data = is_array($form_data_raw) ? 
+					array_map(function($item) {
+						return is_string($item) ? json_decode($item, true) : $item;
+					}, $form_data_raw) : 
+					json_decode($form_data_raw, true);
 
-			//sanitize form data
-			$form_data=Wt_Iew_IE_Basic_Helper::sanitize_formdata($form_data, $this->export_obj);
+			$form_data = (isset($_POST['form_data']) ? Wt_Import_Export_For_Woo_Basic_Common_Helper::process_formdata($unserialized_data) : array());
+			$form_data = Wt_Iew_IE_Basic_Helper::sanitize_formdata($form_data, $this->export_obj);
 
 			/* upadte the template */
-			if($is_update)
-			{ 
+			if($is_update) { 
 							
-				$update_data=array(
-					'data'=>maybe_serialize($form_data),
-					'name'=>$template_name, //may be a rename
+				$update_data = array(
+					'data' => wp_json_encode($form_data),
+					'name' => $template_name, //may be a rename
 				);
-				$update_data_type=array(
+				$update_data_type = array(
 					'%s',
 					'%s'
 				);
-				$update_where=array(
-					'id'=>$this->selected_template
+				$update_where = array(
+					'id' => $this->selected_template
 				);
-				$update_where_type=array(
+				$update_where_type = array(
 					'%d'
 				);
-				if($wpdb->update($tb, $update_data, $update_where, $update_data_type, $update_where_type)!==false)
-				{
-					$out['id']=$this->selected_template;
-					$out['msg']=__('Template updated successfully');
-					$out['name']=$template_name;
+				// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Its necessary to use direct database query.
+				if($wpdb->update($tb, $update_data, $update_where, $update_data_type, $update_where_type) !== false) {
+					$out['id'] = $this->selected_template;
+					$out['msg'] = esc_html__('Template updated successfully', 'order-import-export-for-woocommerce');
+					$out['name'] = $template_name;
 					return $out;
 				}
-			}else
-			{
-				$insert_data=array(
-					'template_type'=>'export',
-					'item_type'=>$this->to_export,
-					'name'=>$template_name,
-					'data'=>maybe_serialize($form_data),
+				// phpcs:enable
+			} else {
+				$insert_data = array(
+					'template_type' => 'export',
+					'item_type' => $this->to_export,
+					'name' => $template_name,
+					'data' => wp_json_encode($form_data),
 				);
-				$insert_data_type=array(
+				$insert_data_type = array(
 					'%s','%s','%s','%s'
 				);
-				if($wpdb->insert($tb, $insert_data, $insert_data_type)) //success
-				{
-					$out['id']=$wpdb->insert_id;
-					$out['msg']=__('Template saved successfully');
+				// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Its necessary to use direct database query.
+				if($wpdb->insert($tb, $insert_data, $insert_data_type)) { //success 
+					$out['id'] = $wpdb->insert_id;
+					$out['msg'] = esc_html__('Template saved successfully', 'order-import-export-for-woocommerce');
 					return $out;
 				}
+				// phpcs:enable
 			}
 		}
-		$out['status']=0;
+		$out['status'] = 0;
+		// phpcs:enable
 		return $out;
 	}
 
@@ -539,9 +554,14 @@ class Wt_Import_Export_For_Woo_Basic_Export_Ajax
 					'text' => 'Upgrade to User Import Export Pro.'
 
 				),
-		);
-		$link = $link_array[$this->to_export][ 'link'];
-		$text =$link_array[$this->to_export][ 'text'];
+				'subscription' => array(
+					'link' => 'https://www.webtoffee.com/product/order-import-export-plugin-for-woocommerce/?utm_source=free_plugin_file_upload&utm_medium=basic_revamp&utm_campaign=Order_Import_Export',
+					'text' => 'Upgrade to Order Import Export Pro.'
+
+				),
+			);
+			$link = $link_array[$this->to_export][ 'link'];
+			$text =$link_array[$this->to_export][ 'text'];
 			
 			ob_start();
 			$this->prepare_step_header_html();
@@ -560,11 +580,12 @@ class Wt_Import_Export_For_Woo_Basic_Export_Ajax
 	*/
 	protected function get_template_form_data($id)
 	{
-		$template_data=$this->get_mapping_template_by_id($id);
+		$template_data = $this->get_mapping_template_by_id($id);
 		if($template_data)
 		{
-			$decoded_form_data=Wt_Import_Export_For_Woo_Basic_Common_Helper::process_formdata(maybe_unserialize($template_data['data']));
-			$this->selected_template_form_data=(!is_array($decoded_form_data) ? array() : $decoded_form_data);
+			$decoded_data = Wt_Import_Export_For_Woo_Basic_Common_Helper::decode_template_data($template_data['data']); 
+			$decoded_form_data = Wt_Import_Export_For_Woo_Basic_Common_Helper::process_formdata($decoded_data);
+			$this->selected_template_form_data = (!is_array($decoded_form_data) ? array() : $decoded_form_data);
 		}
 	}
 
@@ -575,8 +596,9 @@ class Wt_Import_Export_For_Woo_Basic_Export_Ajax
 	{
 		global $wpdb;
 		$tb=$wpdb->prefix. Wt_Import_Export_For_Woo_Basic::$template_tb;
-		$qry=$wpdb->prepare("SELECT * FROM $tb WHERE template_type=%s AND item_type=%s AND name=%s",array('export', $this->to_export, $name));
-		return $wpdb->get_row($qry, ARRAY_A);
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Its necessary to use direct database query.
+		return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$tb} WHERE template_type=%s AND item_type=%s AND name=%s",array('export', $this->to_export, $name)), ARRAY_A);
+		// phpcs:enable
 	}
 
 	/**
@@ -586,8 +608,9 @@ class Wt_Import_Export_For_Woo_Basic_Export_Ajax
 	{
 		global $wpdb;
 		$tb=$wpdb->prefix.Wt_Import_Export_For_Woo_Basic::$template_tb;
-		$qry=$wpdb->prepare("SELECT * FROM $tb WHERE template_type=%s AND item_type=%s AND id=%d",array('export', $this->to_export, $id));
-		return $wpdb->get_row($qry, ARRAY_A);
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Its necessary to use direct database query.
+		return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$tb} WHERE template_type=%s AND item_type=%s AND id=%d",array('export', $this->to_export, $id)), ARRAY_A);
+		// phpcs:enable
 	}
 
 	/**
@@ -601,7 +624,9 @@ class Wt_Import_Export_For_Woo_Basic_Export_Ajax
 		}		
 		global $wpdb;
 		$tb=$wpdb->prefix.Wt_Import_Export_For_Woo_Basic::$template_tb;
-		$val=$wpdb->get_results("SELECT * FROM $tb WHERE template_type='export' AND item_type='".$this->to_export."' ORDER BY id DESC", ARRAY_A);	
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Its necessary to use direct database query.
+		$val=$wpdb->get_results($wpdb->prepare("SELECT * FROM {$tb} WHERE template_type='export' AND item_type=%s ORDER BY id DESC", $this->to_export), ARRAY_A);	
+		// phpcs:enable
 
 		//add a filter here for modules to alter the data
 		$this->mapping_templates=($val ? $val : array());
@@ -634,7 +659,8 @@ class Wt_Import_Export_For_Woo_Basic_Export_Ajax
 		$this->current_step_number=$this->current_step_index+1;
 		$this->last_page=(!isset($this->step_keys[$this->current_step_index+1]) ? true : false);
 		$this->total_steps=count($this->step_keys);
-		$this->step_summary=__(sprintf("Step %d of %d", $this->current_step_number, $this->total_steps));
+		// translators: 1: step number, 2: total steps
+		$this->step_summary=sprintf(__('Step %1$d of %2$d', 'order-import-export-for-woocommerce'), $this->current_step_number, $this->total_steps);
 		$this->step_description = $step_info['description'];
 	}
 
@@ -657,7 +683,7 @@ class Wt_Import_Export_For_Woo_Basic_Export_Ajax
 					'type'=>'button',
 					'action_type'=>'step',
 					'key'=>$step_keys[$current_index-1],
-					'text'=>'<span class="dashicons dashicons-arrow-left-alt2" style="line-height:27px;"></span> '.__('Back'),
+					'text'=>'<span class="dashicons dashicons-arrow-left-alt2" style="line-height:27px;"></span> '.__('Back', 'order-import-export-for-woocommerce'),
 				);
 			}
 			
@@ -670,14 +696,14 @@ class Wt_Import_Export_For_Woo_Basic_Export_Ajax
 					'type'=>'button',
 					'action_type'=>'step',
 					'key'=>$next_key,
-					'text'=>__('Step').' '.$next_number.': '.$next_title.' <span class="dashicons dashicons-arrow-right-alt2" style="line-height:27px;"></span>',
+					'text'=>__('Step', 'order-import-export-for-woocommerce').' '.$next_number.': '.$next_title.' <span class="dashicons dashicons-arrow-right-alt2" style="line-height:27px;"></span>',
 				);
 
 				if($this->export_method=='quick' || $this->export_method=='template') //Quick Or Template method
 				{
 					$out['or']=array(
 						'type'=>'text',
-						'text'=>__('Or'),
+						'text'=>__('Or', 'order-import-export-for-woocommerce'),
 					);
 				}
 
@@ -696,15 +722,15 @@ class Wt_Import_Export_For_Woo_Basic_Export_Ajax
 							'key'=>'save',
 							'icon'=>'',
 							'type'=>'dropdown_button',
-							'text'=>__('Save template'), 
+							'text'=>__('Save template', 'order-import-export-for-woocommerce'), 
 							'items'=>array(
 								'update'=>array(
 									'key'=>'update_template',
-									'text'=>__('Save'),  //no prompt
+									'text'=>__('Save', 'order-import-export-for-woocommerce'),  //no prompt
 								),
 								'save'=>array(
 									'key'=>'save_template_as',
-									'text'=>__('Save As'), //prompt for name
+									'text'=>__('Save As', 'order-import-export-for-woocommerce'), //prompt for name
 								)
 							)
 						);
@@ -714,7 +740,7 @@ class Wt_Import_Export_For_Woo_Basic_Export_Ajax
 							'key'=>'save_template',
 							'icon'=>'',
 							'type'=>'button',
-							'text'=>__('Save template'), //prompt for name
+							'text'=>__('Save template', 'order-import-export-for-woocommerce'), //prompt for name
 						);
 					}
 				}
@@ -726,7 +752,7 @@ class Wt_Import_Export_For_Woo_Basic_Export_Ajax
 						'class'=>'iew_export_image_btn',
 						'icon'=>'',
 						'type'=>'button',
-						'text'=>__('Export images'),
+						'text'=>__('Export images', 'order-import-export-for-woocommerce'),
 					);
 				}
 
@@ -735,7 +761,7 @@ class Wt_Import_Export_For_Woo_Basic_Export_Ajax
 					'class'=>'iew_export_btn',
 					'icon'=>'',
 					'type'=>'button',
-					'text'=>__('Export'),
+					'text'=>__('Export', 'order-import-export-for-woocommerce'),
 				);
 			}
 		}		

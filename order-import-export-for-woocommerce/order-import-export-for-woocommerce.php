@@ -6,12 +6,12 @@ Plugin URI: https://wordpress.org/plugins/order-import-export-for-woocommerce/
 Description: Export and Import Order detail including line items, From and To your WooCommerce Store.
 Author: WebToffee
 Author URI: https://www.webtoffee.com/product/woocommerce-order-coupon-subscription-export-import/
-Version: 2.5.8
+Version: 2.6.8
 Text Domain: order-import-export-for-woocommerce
 Domain Path: /languages
 Requires at least: 3.0
 Requires PHP: 5.6
-WC tested up to: 9.3.3
+WC tested up to: 10.3.4
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 */
@@ -43,12 +43,18 @@ if ( ! defined( 'WT_IEW_DEBUG_BASIC' ) ) {
 if ( !defined( 'WT_IEW_DEBUG_BASIC_TROUBLESHOOT' ) ) {
 	define( 'WT_IEW_DEBUG_BASIC_TROUBLESHOOT', 'https://www.webtoffee.com/finding-php-error-logs/' );
 }
+
+if ( ! defined( 'WBTE_OIEW_CROSS_PROMO_BANNER_VERSION' ) ) {
+    // This constant must be unique for each plugin. Update this value when updating to a new banner.
+    define ( 'WBTE_OIEW_CROSS_PROMO_BANNER_VERSION', '1.0.1' );
+}
+
 /**
  * Currently plugin version.
  * Start at version 1.0.0 and use SemVer - https://semver.org
  * Rename this for your plugin and update it as you release new versions.
  */
-define( 'WT_O_IEW_VERSION', '2.5.8' );
+define( 'WT_O_IEW_VERSION', '2.6.8' );
 
 /**
  * The code that runs during plugin activation.
@@ -58,6 +64,7 @@ function activate_wt_import_export_for_woo_basic_order() {
     wt_order_activation_check();        
 	require_once plugin_dir_path( __FILE__ ) . 'includes/class-wt-import-export-for-woo-activator.php';
 	Wt_Import_Export_For_Woo_Basic_Activator_Order::activate();
+    wt_order_imp_exp_basic_migrate_serialized_data_to_json();
 }
 
 require_once plugin_dir_path( __FILE__ ) . 'class-wt-order-welcome-script.php';
@@ -85,8 +92,9 @@ if ( !function_exists( 'wt_order_basic_check_for_woocommerce' ) ) {
 				$install_url = wp_nonce_url( add_query_arg( array( 'action' => 'install-plugin', 'plugin' => 'woocommerce', ), admin_url( 'update.php' ) ), 'install-plugin_woocommerce' );
 				$class		 = 'notice notice-error';
 				$post_type	 = 'order';
-				$message	 = sprintf( __( 'The <b>WooCommerce</b> plugin must be active for <b>%s / Coupon / Subscription Export Import Plugin for WooCommerce (BASIC)</b> plugin to work.  Please <a href="%s" target="_blank">install & activate WooCommerce</a>.' ), ucfirst( $post_type ), esc_url( $install_url ) );
-				printf( '<div class="%s"><p>%s</p></div>', esc_attr( $class ), ( $message ) );
+                // translators: 1: post type, 2: plugin name
+				$message	 = sprintf( __( 'The <b>WooCommerce</b> plugin must be active for <b>%1$s / Coupon / Subscription Export Import Plugin for WooCommerce (BASIC)</b> plugin to work.  Please <a href="%2$s" target="_blank">install & activate WooCommerce</a>.', 'order-import-export-for-woocommerce' ), ucfirst( $post_type ), esc_url( $install_url ) );
+				echo wp_kses_post( sprintf( '<div class="%s"><p>%s</p></div>', esc_attr( $class ), ( $message ) ) );
 			}
 
 		}
@@ -116,7 +124,8 @@ $advanced_settings = get_option('wt_iew_advanced_settings', array());
 $ier_get_max_execution_time = (isset($advanced_settings['wt_iew_maximum_execution_time']) && $advanced_settings['wt_iew_maximum_execution_time'] != '') ? $advanced_settings['wt_iew_maximum_execution_time'] : ini_get('max_execution_time');
 
 if (strpos(@ini_get('disable_functions'), 'set_time_limit') === false) {
-        @set_time_limit($ier_get_max_execution_time);
+    // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged
+    @set_time_limit($ier_get_max_execution_time);
 }
 
 /**
@@ -132,8 +141,8 @@ function run_wt_import_export_for_woo_basic_order() {
 
     if ( ! defined( 'WT_IEW_BASIC_STARTED' ) ) {
         define ( 'WT_IEW_BASIC_STARTED', 1);
-	$plugin = new Wt_Import_Export_For_Woo_Basic();
-	$plugin->run();
+	   $plugin = new Wt_Import_Export_For_Woo_Basic();
+	   $plugin->run();
     }
 
 }
@@ -142,9 +151,11 @@ if ( !get_option( 'wt_o_iew_is_active' ) ) {
 	activate_wt_import_export_for_woo_basic_order();
 }
 
-if ( get_option( 'wt_o_iew_is_active' ) ) {
-    run_wt_import_export_for_woo_basic_order();       
-}
+add_action( 'init', function() {
+    if ( get_option( 'wt_o_iew_is_active' ) ) {
+        run_wt_import_export_for_woo_basic_order();       
+    }
+} );
 
 /* Plugin page links */
 add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), 'wt_oiew_plugin_action_links_basic_order' );
@@ -152,11 +163,11 @@ add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), 'wt_oiew_plugi
 function wt_oiew_plugin_action_links_basic_order( $links ) {
 
 	$plugin_links = array(
-        '<a href="' . admin_url('admin.php?page=wt_import_export_for_woo_basic_export') . '">' . __('Export') . '</a>',
-		'<a href="' . admin_url('admin.php?page=wt_import_export_for_woo_basic_import') . '">' . __('Import') . '</a>',
-		'<a href="https://www.webtoffee.com/order-coupon-subscription-export-import-plugin-woocommerce-user-guide/" target="_blank">' . __( 'Documentation' ) . '</a>',
-		'<a href="https://wordpress.org/support/plugin/order-import-export-for-woocommerce/" target="_blank">' . __( 'Support' ) . '</a>',
-		'<a href="https://www.webtoffee.com/product/woocommerce-order-coupon-subscription-export-import/?utm_source=free_plugin_listing&utm_medium=order_imp_exp_basic&utm_campaign=Order_Import_Export&utm_content=' . WT_O_IEW_VERSION . '" style="color:#3db634;">' . __('Premium Upgrade') . '</a>'
+        '<a href="' . admin_url('admin.php?page=wt_import_export_for_woo_basic_export') . '">' . __('Export', 'order-import-export-for-woocommerce') . '</a>',
+		'<a href="' . admin_url('admin.php?page=wt_import_export_for_woo_basic_import') . '">' . __('Import', 'order-import-export-for-woocommerce') . '</a>',
+		'<a href="https://www.webtoffee.com/order-coupon-subscription-export-import-plugin-woocommerce-user-guide/" target="_blank">' . __( 'Documentation', 'order-import-export-for-woocommerce' ) . '</a>',
+		'<a href="https://wordpress.org/support/plugin/order-import-export-for-woocommerce/" target="_blank">' . __( 'Support', 'order-import-export-for-woocommerce' ) . '</a>',
+		'<a href="https://www.webtoffee.com/product/order-import-export-plugin-for-woocommerce/?utm_source=free_plugin_listing&utm_medium=order_imp_exp_basic&utm_campaign=Order_Import_Export&utm_content=' . WT_O_IEW_VERSION . '" style="color:#3db634;">' . __('Premium Upgrade', 'order-import-export-for-woocommerce') . '</a>'
 	);
 	if ( array_key_exists( 'deactivate', $links ) ) {
 		$links[ 'deactivate' ] = str_replace( '<a', '<a class="wforderimpexp-deactivate-link"', $links[ 'deactivate' ] );
@@ -172,10 +183,7 @@ function wt_order_import_export_for_woocommerce_update_message( $data, $response
     if(isset( $data['upgrade_notice']))
     {
 		add_action( 'admin_print_footer_scripts','wt_order_imex_basic_plugin_screen_update_js');
-        printf(
-        '<div class="update-message wt-update-message">%s</div>',
-           $data['upgrade_notice']
-        );
+        echo wp_kses_post( sprintf( '<div class="update-message wt-update-message">%s</div>', $data['upgrade_notice'] ) );
     }
 }
 add_action( 'in_plugin_update_message-order-import-export-for-woocommerce/order-import-export-for-woocommerce.php', 'wt_order_import_export_for_woocommerce_update_message', 10, 2 );
@@ -205,11 +213,10 @@ include_once plugin_dir_path( __FILE__ ) . 'includes/class-wf-orderimpexp-plugin
 
 include_once 'class-wt-order-review-request.php';
 
-// Add dismissible server info for file restrictions
-include_once plugin_dir_path( __FILE__ ) . 'includes/class-wt-non-apache-info.php';
-$inform_server_secure = new wt_inform_server_secure('order');
-$inform_server_secure->plugin_title = "Order Import Export";
-$inform_server_secure->banner_message = sprintf(__("The <b>%s</b> plugin uploads the imported file into <b>wp-content/webtoffee_import</b> folder. Please ensure that public access restrictions are set in your server for this folder."), $inform_server_secure->plugin_title);
+// Load Common Helper Class (needed by non-apache-info)
+if ( ! class_exists( 'Wt_Import_Export_For_Woo_Basic_Common_Helper' ) ) {
+    require_once plugin_dir_path( __FILE__ ) . 'helpers/class-wt-common-helper.php';
+}
 
 
 add_action( 'wt_order_addon_basic_help_content', 'wt_order_import_export_basic_help_content' );
@@ -218,11 +225,11 @@ function wt_order_import_export_basic_help_content() {
 	if ( defined( 'WT_IEW_PLUGIN_ID_BASIC' ) ) {
     ?>
         <li>
-            <img src="<?php echo WT_O_IEW_PLUGIN_URL; ?>assets/images/sample-csv.png">
-            <h3><?php _e( 'Sample Order CSV' ); ?></h3>
-            <p><?php _e( 'Familiarize yourself with the sample CSV.' ); ?></p>
+            <img src="<?php echo esc_url(WT_O_IEW_PLUGIN_URL); ?>assets/images/sample-csv.png">
+            <h3><?php esc_html_e( 'Sample Order CSV', 'order-import-export-for-woocommerce' ); ?></h3>
+            <p><?php esc_html_e( 'Familiarize yourself with the sample CSV.', 'order-import-export-for-woocommerce' ); ?></p>
             <a target="_blank" href="https://www.webtoffee.com/wp-content/uploads/2021/03/Order_SampleCSV.csv" class="button button-primary">
-            <?php _e( 'Get Order CSV' ); ?>        
+            <?php esc_html_e( 'Get Order CSV', 'order-import-export-for-woocommerce' ); ?>        
             </a>
         </li>
     <?php
@@ -235,11 +242,11 @@ function wt_coupon_import_export_basic_help_content() {
 	if ( defined( 'WT_IEW_PLUGIN_ID_BASIC' ) ) {
     ?>
         <li>
-            <img src="<?php echo WT_O_IEW_PLUGIN_URL; ?>assets/images/sample-csv.png">
-            <h3><?php _e( 'Sample Coupon CSV' ); ?></h3>
-            <p><?php _e( 'Familiarize yourself with the sample CSV.' ); ?></p>
+            <img src="<?php echo esc_url(WT_O_IEW_PLUGIN_URL); ?>assets/images/sample-csv.png">
+            <h3><?php esc_html_e( 'Sample Coupon CSV', 'order-import-export-for-woocommerce' ); ?></h3>
+            <p><?php esc_html_e( 'Familiarize yourself with the sample CSV.', 'order-import-export-for-woocommerce' ); ?></p>
             <a target="_blank" href="https://www.webtoffee.com/wp-content/uploads/2016/09/Coupon_Sample_CSV.csv" class="button button-primary">
-            <?php _e( 'Get Coupon CSV' ); ?>        
+            <?php esc_html_e( 'Get Coupon CSV', 'order-import-export-for-woocommerce' ); ?>        
             </a>
         </li>
     <?php
@@ -253,22 +260,22 @@ function wt_order_addon_basic_gopro_content() {
     ?>
                 <div class="wt-ier-coupon wt-ier-order wt-ier-gopro-cta wt-ierpro-features"  style="display: none;">
                     <ul class="ticked-list wt-ierpro-allfeat">
-						<li><?php _e('Import and export in XLS and XLSX formats'); ?><span class="wt-iew-upgrade-to-pro-new-feature"><?php esc_html_e( 'New' ); ?></span></li>
-						<li><?php _e('All free version features'); ?></li>
-						<li><?php _e('XML file type support'); ?></li>						
-                        <li><?php _e('Import and export subscription orders'); ?></li>												
-                        <li><?php _e('Export and import custom fields and third-party plugin fields'); ?></li>                         
-                        <li><?php _e('Run scheduled automatic import and export'); ?></li>
-                        <li><?php _e('Import from URL, FTP/SFTP'); ?></li>
-						<li><?php _e('Export to FTP/SFTP'); ?></li>
-						<li><?php _e('Option to email customers on order status change'); ?></li>
-						<li><?php _e('Option to create users on order import'); ?></li>
-                        <li><?php _e('Tested compatibility with major third-party plugins.'); ?></li>
+						<li><?php esc_html_e('Import and export in XLS and XLSX formats', 'order-import-export-for-woocommerce'); ?><span class="wt-iew-upgrade-to-pro-new-feature"><?php esc_html_e( 'New', 'order-import-export-for-woocommerce' ); ?></span></li>
+						<li><?php esc_html_e('All free version features', 'order-import-export-for-woocommerce'); ?></li>
+						<li><?php esc_html_e('XML file type support', 'order-import-export-for-woocommerce'); ?></li>						
+                        <li><?php esc_html_e('Import and export subscription orders', 'order-import-export-for-woocommerce'); ?></li>												
+                        <li><?php esc_html_e('Export and import custom fields and third-party plugin fields', 'order-import-export-for-woocommerce'); ?></li>                         
+                        <li><?php esc_html_e('Run scheduled automatic import and export', 'order-import-export-for-woocommerce'); ?></li>
+                        <li><?php esc_html_e('Import from URL, FTP/SFTP', 'order-import-export-for-woocommerce'); ?></li>
+						<li><?php esc_html_e('Export to FTP/SFTP', 'order-import-export-for-woocommerce'); ?></li>
+						<li><?php esc_html_e('Option to email customers on order status change', 'order-import-export-for-woocommerce'); ?></li>
+						<li><?php esc_html_e('Option to create users on order import', 'order-import-export-for-woocommerce'); ?></li>
+                        <li><?php esc_html_e('Tested compatibility with major third-party plugins.', 'order-import-export-for-woocommerce'); ?></li>
                     </ul>    
                     <div class="wt-ierpro-btn-wrapper"> 
-                        <a href="<?php echo "https://www.webtoffee.com/product/order-import-export-plugin-for-woocommerce/?utm_source=free_plugin_revamp&utm_medium=basic_revamp&utm_campaign=Order_Import_Export&utm_content=".WT_O_IEW_VERSION; ?>" target="_blank"  class="wt-ierpro-outline-btn"><?php _e('UPGRADE TO PREMIUM'); ?></a>
+                        <a href="<?php echo esc_url("https://www.webtoffee.com/product/order-import-export-plugin-for-woocommerce/?utm_source=free_plugin_revamp&utm_medium=basic_revamp&utm_campaign=Order_Import_Export&utm_content=".WT_O_IEW_VERSION); ?>" target="_blank"  class="wt-ierpro-outline-btn"><?php esc_html_e('UPGRADE TO PREMIUM', 'order-import-export-for-woocommerce'); ?></a>
                     </div>
-                    <p style="padding-left:25px;"><b><a href="<?php echo admin_url('admin.php?page=wt_import_export_for_woo_basic#wt-pro-upgrade'); ?>" target="_blank"><?php _e('Get more import export addons >>'); ?></a></b></p>
+                    <p style="padding-left:25px;"><b><a href="<?php echo esc_url(admin_url('admin.php?page=wt_import_export_for_woo_basic#wt-pro-upgrade')); ?>" target="_blank"><?php esc_html_e('Get more import export addons >>', 'order-import-export-for-woocommerce'); ?></a></b></p>
                 </div>
     <?php
 	}
@@ -286,7 +293,7 @@ function export_csv_linkin_order_listing_page($which) {
 	if ( ( 'edit-shop_order' === $currentScreen->id || 'edit-shop_coupon' === $currentScreen->id ) && !is_plugin_active( 'wt-import-export-for-woo/wt-import-export-for-woo.php' ) ) {
 		$post_type = ( 'edit-shop_order' === $currentScreen->id ) ? 'order' : 'coupon';
 		$style = ( 'order' === $post_type ) ? 'style="height:32px;"' : '';
-		echo '<a target="_blank" href="' . admin_url('admin.php?page=wt_import_export_for_woo_basic_export&wt_to_export='.$post_type.'') . '" class="button"'.$style.' >' . __('Export to CSV') . ' </a>';
+		echo wp_kses_post( '<a target="_blank" href="' . esc_url(admin_url('admin.php?page=wt_import_export_for_woo_basic_export&wt_to_export='.$post_type.'')) . '" class="button"'.$style.' >' . esc_html__('Export to CSV', 'order-import-export-for-woocommerce') . ' </a>');
 	}
 }
 
@@ -312,3 +319,77 @@ add_action( 'before_woocommerce_init', function() {
 		\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', __FILE__, true );
 	}
 } );
+
+/**
+ * Convert serialized data to JSON in database tables
+ * 
+ * @since    2.6.1 Added to migrate serialized data to JSON format for better compatibility and security
+ * @access   public
+ * @return   boolean    Success status of the conversion
+ */
+function wt_order_imp_exp_basic_migrate_serialized_data_to_json() {
+    global $wpdb;
+        
+    $tables = array(
+        'mapping' => $wpdb->prefix . 'wt_iew_mapping_template',
+        'history' => $wpdb->prefix . 'wt_iew_action_history'
+    );
+        
+    $success = true;
+        
+    foreach ($tables as $table_type => $table_name) {
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Its necessary to use direct database query.
+        $rows = $wpdb->get_results("SELECT id, data FROM {$table_name}", ARRAY_A);
+        // phpcs:enable
+            
+        if ($rows) {
+            foreach ($rows as $row) {
+                // Check if data is already in JSON format
+                $json_check = json_decode($row['data'], true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    // Skip if already valid JSON
+                    continue;
+                }
+                    
+                // Check if data is serialized
+                if (is_serialized($row['data'])) {
+                    $unserialized_data = Wt_Import_Export_For_Woo_Basic_Common_Helper::wt_unserialize_safe($row['data']);
+                    if (false !== $unserialized_data) {
+                        $json_data = wp_json_encode($unserialized_data);
+                        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Its necessary to use direct database query.
+                        $update_result = $wpdb->update(
+                            $table_name,
+                            array('data' => $json_data),
+                            array('id' => $row['id']),
+                            array('%s'),
+                            array('%d')
+                        );
+                        // phpcs:enable
+                        if (false === $update_result) {
+                            $success = false;
+                            break 2; // Break both loops if update fails
+                        }
+                    }
+                }
+            }
+        }
+    }
+        
+    // If migration was successful, store the option
+    if ($success) {
+        update_option('wt_o_iew_basic_json_migration_complete', 'yes');
+    }
+        
+    return $success;
+}
+
+/**
+ * Check and convert serialized data to JSON if not already done
+ */
+function wt_check_and_convert_to_json() {
+    $migration_complete = get_option('wt_o_iew_basic_json_migration_complete');
+    if (empty($migration_complete) || $migration_complete !== 'yes') {
+        wt_order_imp_exp_basic_migrate_serialized_data_to_json();
+    }
+}
+add_action('admin_init', 'wt_check_and_convert_to_json');

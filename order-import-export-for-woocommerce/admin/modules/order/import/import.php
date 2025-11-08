@@ -82,16 +82,16 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                     if($this->is_order_exist){
                         $msg = 'Order updated successfully.';
                     }
-                    $this->import_results[$row] = array('row'=>$row, 'message'=>$msg, 'status'=>true, 'status_msg' => __( 'Success' ), 'post_id'=>$result['id'], 'post_link' => Wt_Import_Export_For_Woo_Basic_Order::get_item_link_by_id($result['id'])); 
+                    $this->import_results[$row] = array('row'=>$row, 'message'=>$msg, 'status'=>true, 'status_msg' => __( 'Success', 'order-import-export-for-woocommerce' ), 'post_id'=>$result['id'], 'post_link' => Wt_Import_Export_For_Woo_Basic_Order::get_item_link_by_id($result['id'])); 
                     Wt_Import_Export_For_Woo_Basic_Logwriter::write_log($this->parent_module->module_base, 'import', "Row :$row - ".$msg);                    
                     $success++;                     
                 }else{
-                    $this->import_results[$row] = array('row'=>$row, 'message'=>$result->get_error_message(), 'status'=>false, 'status_msg' => __( 'Failed/Skipped' ), 'post_id'=>'', 'post_link' => array( 'title' => __( 'Untitled' ), 'edit_url' => false ) );
+                    $this->import_results[$row] = array('row'=>$row, 'message'=>$result->get_error_message(), 'status'=>false, 'status_msg' => __( 'Failed/Skipped', 'order-import-export-for-woocommerce' ), 'post_id'=>'', 'post_link' => array( 'title' => __( 'Untitled', 'order-import-export-for-woocommerce' ), 'edit_url' => false ) );
                     Wt_Import_Export_For_Woo_Basic_Logwriter::write_log($this->parent_module->module_base, 'import', "Row :$row - Processing failed. Reason: ".$result->get_error_message());                   
                    $failed++;
                 }                
             }else{
-               $this->import_results[$row] = array('row'=>$row, 'message'=>$parsed_data->get_error_message(), 'status'=>false, 'status_msg' => __( 'Failed/Skipped' ), 'post_id'=>'', 'post_link' => array( 'title' => __( 'Untitled' ), 'edit_url' => false ) );
+               $this->import_results[$row] = array('row'=>$row, 'message'=>$parsed_data->get_error_message(), 'status'=>false, 'status_msg' => __( 'Failed/Skipped', 'order-import-export-for-woocommerce' ), 'post_id'=>'', 'post_link' => array( 'title' => __( 'Untitled', 'order-import-export-for-woocommerce' ), 'edit_url' => false ) );
                Wt_Import_Export_For_Woo_Basic_Logwriter::write_log($this->parent_module->module_base, 'import', "Row :$row - Parsing failed. Reason: ".$parsed_data->get_error_message());               
                $failed++;                
             }            
@@ -114,7 +114,9 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
     
     public function clean_after_import() {
         global $wpdb;
-        $posts = $wpdb->get_col($wpdb->prepare("SELECT ID FROM {$wpdb->posts} WHERE post_status = '%s' AND post_type = '%s' ", 'importing' ,$this->post_type)); 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Its necessary to use direct database query.
+        $posts = $wpdb->get_col($wpdb->prepare("SELECT ID FROM {$wpdb->posts} WHERE post_status = %s AND post_type = %s ", 'importing' ,$this->post_type)); 
+        // phpcs:enable
         if($posts){
             array_map('wp_delete_post',$posts);
         }
@@ -127,6 +129,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
             'fields' => 'ids',
             'posts_per_page' => -1,
             'post_status' => array_keys($this->wc_get_order_statuses_neat()),
+            // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Its necessary to use meta query.
             'meta_query' => [
                 [
                     'key' => '_wt_delete_existing',
@@ -145,6 +148,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
             'fields' => 'ids',
             'posts_per_page' => -1,
             'post_status' => array_keys($this->wc_get_order_statuses_neat()),
+            // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Its necessary to use meta query.
             'meta_query' => [
                 [
                     'key' => '_wt_delete_existing',
@@ -226,20 +230,20 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                 }
                 if ( 'date_created' == $column || 'post_date' == $column || 'order_date' == $column) {
                     $date = $this->wt_parse_date_field($value,$column);
-                    $this->item_data['date_created'] = date('Y-m-d H:i:s', $date);
+                    $this->item_data['date_created'] = wp_date('Y-m-d H:i:s', $date);
                     continue;
                 }  
                 if(('_paid_date' == $column || 'paid_date' == $column) && $value != ''){
 
                     $date = $this->wt_parse_date_field($value,$column);
-                    $this->item_data['date_paid'] = date('Y-m-d H:i:s', $date);
+                    $this->item_data['date_paid'] = wp_date('Y-m-d H:i:s', $date);
                     continue;
                 }
 
                 if ('post_modified' == $column || 'date_modified' == $column || 'date_completed' == $column || '_completed_date' == $column ) {
                     $date = $this->wt_parse_date_field($value,$column);
-                    $this->item_data['date_modified'] = date('Y-m-d H:i:s', $date);
-                    $this->item_data['date_completed'] = date('Y-m-d H:i:s', $date);
+                    $this->item_data['date_modified'] = wp_date('Y-m-d H:i:s', $date);
+                    $this->item_data['date_completed'] = wp_date('Y-m-d H:i:s', $date);
                     continue;
                 }
 
@@ -622,9 +626,14 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
         if($id){
             $statuses =array_keys(wc_get_order_statuses()) ? array_keys(wc_get_order_statuses()) : array();
             if($this->is_hpos_enabled == true ){
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Its necessary to use direct database query.
                 $data_from_order_table = $wpdb->get_row($wpdb->prepare("SELECT id,status,type,date_created_gmt,parent_order_id,customer_note FROM {$wpdb->prefix}wc_orders WHERE id = %d;", $id));
+                // phpcs:enable
             }
+
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Its necessary to use direct database query.
             $data_from_post_table = $wpdb->get_row($wpdb->prepare("SELECT ID,post_status,post_type,post_date_gmt,post_parent,post_excerpt FROM {$wpdb->posts} WHERE ID = %d;", $id));
+            // phpcs:enable
             if(isset( $data_from_order_table) && $data_from_order_table){
                 $order_table_id = $data_from_order_table->id;
                 $order_table_status = 'wc-' . preg_replace('/^wc-/', '', $data_from_order_table->status);
@@ -680,7 +689,9 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                     );
                    
                     $table_name = $wpdb->prefix . 'wc_orders';
+                    // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- Its necessary to use direct database query.
                     $insert_order = $wpdb->insert( $table_name, $order_data );
+                    // phpcs:enable
                     if($insert_order){
                         $this->is_order_exist = true;
                         $order_id = $post_table_id;
@@ -782,7 +793,9 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                             );
                         
                             $table_name = $wpdb->prefix . 'wc_orders';
+                            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- Its necessary to use direct database query.
                             $insert_order = $wpdb->insert( $table_name, $order_data );
+                            // phpcs:enable
                             if($insert_order){
                                 $this->is_order_exist = true;
                                 $order_id = $post_table_id;
@@ -795,7 +808,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
             if($this->is_order_exist){
                 if('skip' == $this->found_action){
                     if($id && $order_id ){
-                        throw new Exception(sprintf('Order with same ID already exists. ID: %d',$id ));
+                        throw new Exception(esc_html(sprintf('Order with same ID already exists. ID: %d',$id )));
                     }                 
                 }elseif('update' == $this->found_action){
                     $this->merge = true; 
@@ -807,7 +820,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                 throw new Exception('Skipping new item' );
             } 
             if ($id && $conflict_with_existing_post && !$this->is_order_exist && 'skip' == $this->id_conflict) {
-                throw new Exception(sprintf('Importing Order(ID) conflicts with an existing post. ID: %d',$id ));               
+                throw new Exception(esc_html(sprintf('Importing Order(ID) conflicts with an existing post. ID: %d',$id )));               
             }       
         }
     }
@@ -848,8 +861,10 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
             // verify that this order number isn't already in use
             $query_args = array(
                 'numberposts' => 1,
+                // phpcs:disable WordPress.DB.SlowDBQuery.slow_db_query_meta_key, WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- Its necessary to use meta query.
                 'meta_key' => apply_filters('woocommerce_order_number_formatted_meta_name', '_order_number_formatted'),
                 'meta_value' => $order_number_formatted,
+                // phpcs:enable
                 'post_type' => $this->post_type,
                 'post_status' => array_keys(wc_get_order_statuses()),
                 'fields' => 'ids',
@@ -865,7 +880,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
 
             if ($order_id) {
                 // skip if order ID already exist.                 
-                throw new Exception(sprintf('Skipped. %s already exists.', ucfirst($this->parent_module->module_base)) );
+                throw new Exception(esc_html(sprintf('Skipped. %s already exists.', ucfirst($this->parent_module->module_base)) ));
             }
         }
         if ($order_number_formatted)
@@ -881,12 +896,12 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
         $date = $value;
         
         if($value == ''){
-            $date = date('Y-m-d h:i:s');
+            $date = wp_date('Y-m-d h:i:s');
         }
                 
         if(false === ( $date = strtotime($date) )) {
             // invalid date format
-            throw new Exception(sprintf('Skipped. Invalid date format %s in column %s.', $value,$column) ); 
+            throw new Exception(esc_html(sprintf('Skipped. Invalid date format %s in column %s.', $value,$column) )); 
         }
         return $date;        
     }
@@ -1163,39 +1178,69 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
         return $payment_method_obj;                
     }
     
-    public function wt_parse_shipping_items_field($value) {
-        $shipping_items = array();
-        if('' !== $value){
-            $shipping_line_items = explode('|', $value);
-            $items = array_shift($shipping_line_items);
-            $items = json_decode(substr($items, strpos($items, ":") + 1));
-            $method_id = array_shift($shipping_line_items);
-            $method_id = json_decode(substr($method_id, strpos($method_id, ":") + 1));
-            $taxes = array_shift($shipping_line_items);
-            $tax_data = json_decode(substr($taxes, strpos($taxes, ":") + 1));
-             
-            $new_tax_data = array();
-            if(isset($tax_data->total)){
-                foreach($tax_data->total as $t_key => $t_value){
-                    if(isset($this->item_data['tax_items'][$t_key])){
-                        $new_tax_data ['total'][$this->item_data['tax_items'][$t_key]['rate_id']] = $t_value ;
-                    }else{
-                        $new_tax_data ['total'][$t_key] = $t_value;
-                    }
+    public function wt_parse_shipping_items_field($value) {    
+        $shipping_items = [
+            'Items'     => null,
+            'method_id' => null,
+            'taxes'     => null,
+        ];
+    
+        if ( '' !== $value ) {
+            $parts = explode('|', $value);
+    
+            foreach ( $parts as $part ) {
+                // Split only on the first ":" to preserve any colons in the value
+                $kv = explode(':', $part, 2);
+                $key = isset($kv[0]) ? trim($kv[0]) : '';
+                $raw = isset($kv[1]) ? $kv[1] : '';
+    
+                switch ($key) {
+                    case 'items':
+                        // Plain string, no json_decode
+                        $shipping_items['Items'] = $raw;
+                        break;
+    
+                    case 'method_id':
+                        $shipping_items['method_id'] = $raw;
+                        break;
+    
+                    case 'taxes':
+                        // This is PHP-serialized data (e.g., a:1:{s:5:"total";...})
+                        $tax_data = Wt_Import_Export_For_Woo_Basic_Common_Helper::wt_unserialize_safe($raw);
+    
+                        // Fallback: sometimes exporters may send JSON; try decoding to array
+                        if ( false === $tax_data || null === $tax_data) {
+                            $as_json = json_decode($raw, true);
+                            if ( JSON_ERROR_NONE === json_last_error() ) {
+                                $tax_data = $as_json;
+                            }
+                        }
+    
+                        if ( is_array( $tax_data ) ) {
+                            $new_tax_data = ['total' => []];
+    
+                            if ( isset( $tax_data['total'] ) && is_array( $tax_data['total'] ) ) {
+                                foreach ( $tax_data['total'] as $t_key => $t_value ) {
+                                    // If we have a tax_items index->rate_id mapping, remap keys
+                                    if ( isset( $this->item_data['tax_items'] ) && isset( $this->item_data['tax_items'][$t_key]['rate_id'] ) ) {
+                                        $rate_id = $this->item_data['tax_items'][$t_key]['rate_id'];
+                                        $new_tax_data['total'][$rate_id] = $t_value;
+                                    } else {
+                                        $new_tax_data['total'][$t_key] = $t_value;
+                                    }
+                                }
+                            }
+    
+                            $shipping_items['taxes'] = $new_tax_data;
+                        } else {
+                            $shipping_items['taxes'] = $tax_data; // null/false as-is, for visibility
+                        }
+                        break;
                 }
-            }else{
-                $new_tax_data =  $tax_data;
             }
-            
-            $shipping_items = array(
-                'Items' => $items,
-                'method_id' => $method_id,
-                'taxes' => $new_tax_data
-            );
         }
-        
+    
         return $shipping_items;
-        
     }
         
     public function wt_parse_fee_items_field($value) {
@@ -1240,9 +1285,11 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
         global $wpdb;
         $tax_rates = array();
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Its necessary to use direct database query.
         foreach ($wpdb->get_results("SELECT * FROM {$wpdb->prefix}woocommerce_tax_rates") as $_row) {
             $tax_rates[$_row->tax_rate_id] = $_row;
         }
+        // phpcs:enable
         $tax_items = array();
 
             $tax_item = explode(';', $value);
@@ -1252,7 +1299,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                 // turn "label: Tax | tax_amount: 10" into an associative array
                 foreach (explode('|', $tax) as $piece) {
                     list( $name, $value ) = array_pad(explode(':', $piece), 2, null);
-                    if(isset($name)){
+                    if(!empty($name)){
                         $tax_item_data[trim($name)] = trim($value);
                     }
                 }
@@ -1415,7 +1462,9 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
             if($this->ord_link_using_sku || (empty($product_identifier_by_id))){
                 $product_sku = !empty($product_identifier_by_sku) ? $product_identifier_by_sku : '';
                 if ($product_sku){
+                    // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Its necessary to use direct database query.
                     $product_id = $wpdb->get_var($wpdb->prepare("SELECT post_id FROM $wpdb->postmeta WHERE meta_key='_sku' AND meta_value=%s LIMIT 1", $product_sku));
+                    // phpcs:enable
                     if(!empty($product_id)){
                         if(get_post_type($product_id) == 'product_variation'){
                             $variation = TRUE;
@@ -1515,14 +1564,18 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
             $id = intval($matches[1]);
 
             // If original_id is found, use that instead of the given ID since a new placeholder must have been created already.
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Its necessary to use direct database query.
             $original_id = $wpdb->get_var($wpdb->prepare("SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_original_id' AND meta_value = %s;", $id)); // WPCS: db call ok, cache ok.
+            // phpcs:enable
 
             if ($original_id) {
                 return absint($original_id);
             }
 
             // See if the given ID maps to a valid product allready.
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Its necessary to use direct database query.
             $existing_id = $wpdb->get_var($wpdb->prepare("SELECT ID FROM {$wpdb->posts} WHERE post_type IN ( 'product', 'product_variation' ) AND ID = %d;", $id)); // WPCS: db call ok, cache ok.
+            // phpcs:enable
 
             if ($existing_id) {
                 return absint($existing_id);
@@ -1590,7 +1643,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
         }
         $order_key = 'wc_' . apply_filters( 'woocommerce_generate_order_key', 'order_' . wp_generate_password( 13, false ) );
 
-        $date = !empty($parsed_data['date_created']) ? $parsed_data['date_created'] : date('Y-m-d H:i:s', time());
+        $date = !empty($parsed_data['date_created']) ? $parsed_data['date_created'] : wp_date('Y-m-d H:i:s', time());
         if ( wp_timezone() ) {
             $local_timezone = wp_timezone(); 
             $local_time = new DateTime($parsed_data['date_created'], $local_timezone);
@@ -1629,7 +1682,9 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                
                 
                 $table_name = $wpdb->prefix . 'wc_orders';
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Its necessary to use direct database query.
                 $insert_order = $wpdb->insert( $table_name, $order_data );
+                // phpcs:enable
             }
                
         }else{
@@ -1641,7 +1696,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                     'post_status'   => 'importing',
                     'ping_status'   => 'closed',
                     'post_author'   => 1,
-                    'post_title'    => sprintf('Order &ndash; %s', date('M j, Y @ g:i A', strtotime($date))),
+                    'post_title'    => sprintf('Order &ndash; %s', wp_date('M j, Y @ g:i A', strtotime($date))),
                     'post_password' => $order_key,
                     'post_parent'   => !empty($parsed_data['parent_id']) ? $parsed_data['parent_id'] : 0,
                     'post_excerpt'  => !empty($parsed_data['customer_note']) ? $parsed_data['customer_note'] : '',
@@ -1651,7 +1706,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                 }                   
                 $post_id = wp_insert_post( $postdata, true ); 
             }else if($this->table_name == $wpdb->prefix . 'wc_orders'){
-                $date = !empty($parsed_data['date_created']) ? $parsed_data['date_created'] : date('Y-m-d H:i:s', time());
+                $date = !empty($parsed_data['date_created']) ? $parsed_data['date_created'] : wp_date('Y-m-d H:i:s', time());
                 $postdata = array( // if not specifiying id (id is empty) or if not found by given id  
                     'post_date'     => $date,
                     'post_date_gmt' => $gmt_date,
@@ -1677,7 +1732,9 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                    
                     global $wpdb;
                     $table_name = $wpdb->prefix . 'wc_orders';
+                    // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- Its necessary to use direct database query.
                     $insert_order = $wpdb->insert( $table_name, $order_data );
+                    // phpcs:enable
                 }
     
                 
@@ -1693,7 +1750,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                 if($post_id === 0){
                     throw new Exception ('Error in creating entry in post table');
                 }else{
-                    throw new Exception($post_id->get_error_message());
+                    throw new Exception(wp_kses_post($post_id->get_error_message()));
                 }
             }
         }             
@@ -1789,7 +1846,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
             if ($found_status) {
                 return $value;
             }else{
-                throw new Exception(sprintf('Skipped. Unknown order status (%s).', $value));    
+                throw new Exception(esc_html(sprintf('Skipped. Unknown order status (%s).', $value)));    
             }
         }
 
@@ -1942,10 +1999,14 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
             $order_items = array();
             $order_item_meta = null;
             if ($this->merge && $this->is_order_exist && !empty($data['order_items'])) {
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Its necessary to use direct database query.
                 $wpdb->query($wpdb->prepare("DELETE items,itemmeta FROM {$wpdb->prefix}woocommerce_order_itemmeta itemmeta INNER JOIN {$wpdb->prefix}woocommerce_order_items items ON itemmeta.order_item_id = items.order_item_id WHERE items.order_id = %d and items.order_item_type = 'line_item'", $order_id));
+                // phpcs:enable
             }
             if ($this->merge && $this->is_order_exist && !empty($data['order_shipping'])) {
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Its necessary to use direct database query.
                 $wpdb->query($wpdb->prepare("DELETE items,itemmeta FROM {$wpdb->prefix}woocommerce_order_itemmeta itemmeta INNER JOIN {$wpdb->prefix}woocommerce_order_items items ON itemmeta.order_item_id = items.order_item_id WHERE items.order_id = %d and items.order_item_type = 'shipping'", $order_id));
+                // phpcs:enable
             }
             
             $_order_item_meta = array();
@@ -1955,15 +2016,16 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                         continue; // special case need to rewrite this concept.  empty array returning from wt_parse_line_item_field
                     $product = null;
                     $variation_item_meta = array();
-                    $product_title = __('Unknown Product');
+                    $product_title = __('Unknown Product', 'order-import-export-for-woocommerce');
                     if ($item['product_id']) {
                         $product = wc_get_product($item['product_id']);
                         if($product){
-                            $product_title = ($product->get_title()!='') ? $product->get_title() :__('Unknown Product') ;
+                            $product_title = ($product->get_title()!='') ? $product->get_title() :__('Unknown Product', 'order-import-export-for-woocommerce') ;
                         }
                         // handle variations
                         if ($product && ( $product->is_type('variable') || $product->is_type('variation') || $product->is_type('subscription_variation') ) && method_exists($product, 'get_variation_id')) {
                             foreach ($product->get_variation_attributes() as $key => $value) {
+                                // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- Its not for DB query.
                                 $variation_item_meta[] = array('meta_name' => esc_attr(substr($key, 10)), 'meta_value' => $value);  // remove the leading 'attribute_' from the name to get 'pa_color' for instance
                             }                        
                         }
@@ -1975,7 +2037,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                     );
                     $var_id = 0;
                     if ($product) {
-                        if (WC()->version < '2.7.0') {
+                        if ( version_compare( WC()->version, '2.7.0', '<' ) ) {
                             $var_id = ($product->product_type === 'variation') ? $product->variation_id : 0;
                         } else {
                             $var_id = $product->is_type('variation') ? $product->get_id() : 0;
@@ -2018,32 +2080,100 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
             }
 
             $shipping_tax = isset($data['shipping_tax_total'])?$data['shipping_tax_total']:0;
-            // create the shipping order items
-            if (!empty($data['order_shipping'])) {
-                foreach ($data['order_shipping'] as $order_shipping) {                    
-                    if(empty($order_shipping)) 
+
+            /**
+             * 2.6.4 - create the shipping order items using WooCommerce object methods
+             */
+            if ( ! empty( $data['order_shipping'] ) && is_array( $data['order_shipping'] ) ) {
+                foreach ( $data['order_shipping'] as $order_shipping ) {                    
+                    if ( empty( $order_shipping ) ) 
                         continue; // special case need to rewrite this concept.  empty array returning from wt_parse_order_shipping_field
                     
-                    $shipping_order_item = array(
-                        'order_item_name' => ($order_shipping['title']) ? $order_shipping['title'] : $data['shipping_method'],
-                        'order_item_type' => 'shipping',
-                    );
-                    $shipping_order_item_id = wc_add_order_item($order_id, $shipping_order_item);
-                    if ($shipping_order_item_id) {
-                        wc_add_order_item_meta($shipping_order_item_id, 'cost', $order_shipping['cost']);
-                        wc_add_order_item_meta($shipping_order_item_id, 'total_tax', $shipping_tax);
+                    // Create shipping item using WooCommerce object
+                    if ( ! class_exists( 'WC_Order_Item_Shipping' ) ) {
+                        Wt_Import_Export_For_Woo_Basic_Logwriter::write_log($this->parent_module->module_base, 'import', "Error: WC_Order_Item_Shipping class not found. WooCommerce may not be active.");
+                        continue;
                     }
+
+                    $shipping_item = new WC_Order_Item_Shipping();
+                    $shipping_title = ($order_shipping['title']) ? $order_shipping['title'] : (isset($data['shipping_method']) ? $data['shipping_method'] : '');
+
+                    if ( ! empty( $shipping_title ) && method_exists( $shipping_item, 'set_method_title' ) ) {
+                        $shipping_item->set_method_title( $shipping_title );
+                    }
+
+                    // Set method ID from parsed shipping items data if available
+                    if ( ! empty( $this->item_data['shipping_items']['method_id'] ) && method_exists( $shipping_item, 'set_method_id' ) ) {
+                        $shipping_item->set_method_id( $this->item_data['shipping_items']['method_id'] );
+                    }
+
+                    if ( ! empty( $order_shipping['cost'] ) && method_exists( $shipping_item, 'set_total' ) ) {
+                        $shipping_item->set_total( $order_shipping['cost'] );
+                    }
+                 
+                    // Set shipping tax - use existing order tax rate ID for compatibility
+                    if ( ! empty( $shipping_tax ) && method_exists( $shipping_item, 'set_taxes' ) ) {
+                        // Use parsed shipping items data if available
+                        if ( ! empty( $this->item_data['shipping_items']['taxes'] ) ) {
+                            $tax_data = $this->item_data['shipping_items']['taxes'];
+                        } else {
+                            // Fallback: Find the appropriate tax rate ID from import data
+                            $tax_rate_id = 0; // Default fallback
+
+                            if ( ! empty( $data['tax_items'] ) ) {
+                                if ( 1 === count( $data['tax_items'] ) ) {
+                                    // Single tax item - use it directly
+                                    $single_tax_item = reset( $data['tax_items'] );
+                                    $tax_rate_id = isset( $single_tax_item['rate_id'] ) ? $single_tax_item['rate_id'] : 0;
+                                } else {
+                                    // Multiple tax items - find the highest rate
+                                    $highest_rate = 0;
+                                    $highest_rate_id = 0;
+                                    
+                                    foreach ( $data['tax_items'] as $tax_item ) {
+                                        $rate_percent = isset( $tax_item['rate_percent'] ) ? floatval( $tax_item['rate_percent'] ) : 0;
+                                        if ( $rate_percent > $highest_rate ) {
+                                            $highest_rate = $rate_percent;
+                                            $highest_rate_id = isset( $tax_item['rate_id'] ) ? $tax_item['rate_id'] : 0;
+                                        }
+                                    }
+                                    $tax_rate_id = $highest_rate_id;
+                                }
+                            }
+                            $tax_data = array( 'total' => array( $tax_rate_id => $shipping_tax ) );
+                        }
+                        $shipping_item->set_taxes( $tax_data );
+                    }
+                    
+                    // Add "Items" meta data to show product names and quantities in shipping section
+                    if ( ! empty( $this->item_data['shipping_items']['Items'] ) ) {
+                        // Use parsed shipping items data
+                        if ( method_exists( $shipping_item, 'add_meta_data' ) ) {
+                            $shipping_item->add_meta_data('Items', $this->item_data['shipping_items']['Items']);
+                        }
+                    } elseif ( ! empty($data['order_items'] ) ) {
+                        // Fallback to order items
+                        $items_array = array();
+                        foreach ( $data['order_items'] as $item ) {
+                            if ( ! empty( $item['product_name'] ) && ! empty( $item['qty'] ) ) {
+                                $items_array[] = $item['product_name'] . ' &times; ' . $item['qty'];
+                            }
+                        }
+                        if ( ! empty( $items_array ) && method_exists( $shipping_item, 'add_meta_data' ) ) {
+                            $shipping_item->add_meta_data('Items', implode(', ', $items_array));
+                        }
+                    }
+                    
+                    // Add to order
+                    $order->add_item($shipping_item);
+                    $shipping_order_item_id = $shipping_item->get_id();
                 }
             }
 
-            if (!empty($data['shipping_items'])) {
+            // Add additional shipping item metadata
+            if (!empty($data['shipping_items']) && isset($shipping_order_item_id) && $shipping_order_item_id) {
                 foreach ($data['shipping_items'] as $key => $value) {
-                    if (isset($shipping_order_item_id) && $shipping_order_item_id) {
-                        wc_add_order_item_meta($shipping_order_item_id, $key, $value);
-                    } else {
-                        $shipping_order_item_id = wc_add_order_item($order_id, $shipping_order_item);
-                        wc_add_order_item_meta($shipping_order_item_id, $key, $value);
-                    }
+                    wc_add_order_item_meta($shipping_order_item_id, $key, $value);
                 }
             }
 
@@ -2051,7 +2181,9 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
             if (!empty($data['fee_items'])) {
                 if ($this->merge && $this->is_order_exist) {
                     $fee_str = 'fee';
+                    // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Its necessary to use direct database query.
                     $wpdb->query($wpdb->prepare("DELETE items,itemmeta FROM {$wpdb->prefix}woocommerce_order_itemmeta itemmeta INNER JOIN {$wpdb->prefix}woocommerce_order_items items WHERE itemmeta.order_item_id = items.order_item_id and items.order_id = %d and items.order_item_type = %s", $order_id, $fee_str));
+                    // phpcs:enable
                 }
                 foreach ($data['fee_items'] as $key => $fee_item) {
                     $fee_order_item = array(
@@ -2071,7 +2203,9 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
             if (!empty($data['tax_items'])) {
                 if ($this->merge && $this->is_order_exist) {
                     $tax_str = 'tax';
+                    // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Its necessary to use direct database query.
                     $wpdb->query($wpdb->prepare("DELETE items,itemmeta FROM {$wpdb->prefix}woocommerce_order_itemmeta itemmeta INNER JOIN {$wpdb->prefix}woocommerce_order_items items WHERE itemmeta.order_item_id = items.order_item_id and items.order_id = %d and items.order_item_type = %s", $order_id, $tax_str));
+                    // phpcs:enable
                 }
                 foreach ($data['tax_items'] as $tax_item) {
                     $tax_order_item = array(
@@ -2111,10 +2245,16 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                         $discount_amount = array_shift($_citem_meta);
                         $discount_amount = substr($discount_amount, strpos($discount_amount, ":") + 1);
 
-                        $mypost = get_page_by_title($coupon_code, '', 'shop_coupon');
-                        $id = (isset($mypost->ID) ? $mypost->ID : '');
-  
-                        if ($id && $this->merge && $this->is_order_exist) {
+                        $coupon_query = new WP_Query(array(
+                            'post_type' => 'shop_coupon',
+                            'post_status' => 'any',
+                            'title' => $coupon_code,
+                            'posts_per_page' => 1,
+                            'fields' => 'ids'
+                        ));
+                        $mypost = !empty($coupon_query->posts) ? get_post($coupon_query->posts[0]) : null;
+
+                        if ($mypost && $this->merge && $this->is_order_exist) {
                             $order->add_coupon($coupon_code, $discount_amount);
                         } else {
                             $coupon_item['order_item_name'] = $coupon_code;
@@ -2158,9 +2298,16 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                             $discount_amount = array_shift($_citem_meta);
                             $discount_amount = substr($discount_amount, strpos($discount_amount, ":") + 1);
 
-                            $id = wc_get_coupon_id_by_code($coupon_code);
+                            $coupon_query = new WP_Query(array(
+                                'post_type' => 'shop_coupon',
+                                'post_status' => 'any',
+                                'title' => $coupon_code,
+                                'posts_per_page' => 1,
+                                'fields' => 'ids'
+                            ));
+                            $mypost = !empty($coupon_query->posts) ? get_post($coupon_query->posts[0]) : null;
 
-                            if ($id && $this->merge && $this->is_order_exist && $order_items_exists) {
+                            if ($mypost && $this->merge && $this->is_order_exist && $order_items_exists) {
                                 $order->apply_coupon($coupon_code);
                             } else {
                                 $coupon_item['order_item_name'] = $coupon_code;
@@ -2177,7 +2324,9 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
             if (!empty($data['refund_items'])) {
                 if ($this->merge && $this->is_order_exist) {
                     $refund = 'shop_order_refund';
+                    // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Its necessary to use direct database query.
                     $wpdb->query($wpdb->prepare("DELETE po,pm FROM $wpdb->posts AS po INNER JOIN $wpdb->postmeta AS pm ON po.ID = pm.post_id WHERE post_parent = %d and post_type = %s", $order_id, $refund));
+                    // phpcs:enable
                 }
                 foreach ($data['refund_items'] as $refund) {
                     $single_refund = explode('|', $refund);
@@ -2207,17 +2356,25 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
             // add order notes
             if(!empty($data['order_notes'])){
                 add_filter('woocommerce_email_enabled_customer_note', '__return_false');
-                    $wpdb->query($wpdb->prepare("DELETE comments,meta FROM {$wpdb->prefix}comments comments LEFT JOIN {$wpdb->prefix}commentmeta meta ON comments.comment_ID = meta.comment_id WHERE comments.comment_post_ID = %d",$order_id));
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Its necessary to use direct database query.
+                $wpdb->query($wpdb->prepare("DELETE comments,meta FROM {$wpdb->prefix}comments comments LEFT JOIN {$wpdb->prefix}commentmeta meta ON comments.comment_ID = meta.comment_id WHERE comments.comment_post_ID = %d",$order_id));
+                // phpcs:enable
+                
+                // Helper function to extract value after colon, safely handling null
+                $extract_value = function($str) {
+                    if ( null === $str ) {
+                        return '';
+                    }
+                    $pos = strpos($str, ":");
+                    return (false !== $pos) ? substr($str, $pos + 1) : $str;
+                };
+                
                 foreach ($data['order_notes'] as $order_note) {
                     $note = explode('|', $order_note);
-                    $con = array_shift($note);
-                    $con = substr($con, strpos($con, ":") + 1);
-                    $date = array_shift($note);
-                    $date = substr($date, strpos($date, ":") + 1);
-                    $cus = array_shift($note);
-                    $cus = substr($cus, strpos($cus, ":") + 1);
-                    $system = array_shift($note);
-                    $added_by = substr($system, strpos($system, ":") + 1);
+                    $con = $extract_value( array_shift( $note ) );
+                    $date = $extract_value( array_shift( $note ) ); 
+                    $cus = $extract_value( array_shift( $note ) );
+                    $added_by = $extract_value( array_shift( $note ) );
                     if($added_by == 'system'){
                         $added_by_user = FALSE;
                     }else{
@@ -2246,7 +2403,8 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
             if (!empty($data['order_number_formatted'])) {                
                 //Provide custom order number functionality , also allow 3rd party plugins to provide their own custom order number facilities
                 do_action('woocommerce_set_order_number', $order, $data['order_number'], $data['order_number_formatted']);
-                $order->add_order_note(sprintf(__("Original order #%s", 'wf_order_import_export'), $data['order_number_formatted']));                
+                // translators: %s: order number.
+                $order->add_order_note(sprintf(__('Original order #%s', 'order-import-export-for-woocommerce'), $data['order_number_formatted']));                
             }
       
             if($this->status_mail == true){   
@@ -2261,7 +2419,9 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
                 }
                 if($this->is_sync || (!$this->is_sync && $this->table_name == $wpdb->prefix . 'wc_orders') ){
                     $status = 'wc-' . preg_replace('/^wc-/', '', $status);
+                    // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Its necessary to use direct database query.
                     $wpdb->query($wpdb->prepare("UPDATE {$wpdb->prefix}wc_orders SET status = %s WHERE id = %d;", $status, $order_id));
+                    // phpcs:enable
                 }
             }
             
@@ -2327,7 +2487,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
 		$order = wc_get_order( $args['order_id'] );
 
 		if ( ! $order ) {
-			throw new Exception( __( 'Invalid order ID.', 'woocommerce' ) );
+			throw new Exception( __( 'Invalid order ID.', 'order-import-export-for-woocommerce' ) );
 		}
 
 		$remaining_refund_amount = $order->get_remaining_refund_amount();
@@ -2567,6 +2727,7 @@ class Wt_Import_Export_For_Woo_Basic_Order_Import {
             add_action( 'woocommerce_order_status_completed_notification', array( $email_class->emails['WC_Email_Customer_Completed_Order'], 'trigger' ) );
         
     }
+
 }
 }
 
